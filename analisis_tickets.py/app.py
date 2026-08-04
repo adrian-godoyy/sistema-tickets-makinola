@@ -1032,8 +1032,8 @@ def calcular_indice_desempeno(df, resumen_productividad):
     # - 20% regularidad diaria
     
 
-     # una escala completa de 0 a 1 antes de convertirla a nota 1 a 7.
-    peso_total = 0.95
+     # sos suman 100%, por lo que no es necesario normalizar.
+   
 
     base["indice_0_1"] = (
         base["score_volumen"] * 0.35
