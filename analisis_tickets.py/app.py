@@ -60,10 +60,10 @@ ENTORNOS_VISIBLES = [
     "Escritorio",
 ]
 
-# David y Neil quedan totalmente excluidos.
+# Neil queda totalmente excluido.
+# David se conserva únicamente para sumar sus tickets a ContaPlus,
+# pero no se considera técnico en productividad, ranking ni filtros.
 TECNICOS_EXCLUIDOS = [
-    "david",
-    "david paredes castro",
     "neil",
     "neil torres",
 ]
@@ -95,15 +95,25 @@ def normalizar_nombre(nombre):
 
 def tecnico_excluido(nombre):
     """
-    Excluye cualquier nombre que corresponda a David o Neil.
-    También cubre nombres completos y espacios adicionales.
+    Excluye únicamente a Neil.
+    David se conserva como información adicional de ContaPlus,
+    pero no participa como técnico.
     """
     nombre_normalizado = normalizar_nombre(nombre)
 
     return (
         nombre_normalizado in TECNICOS_EXCLUIDOS
-        or nombre_normalizado.startswith("david ")
         or nombre_normalizado.startswith("neil ")
+    )
+
+
+def es_david(nombre):
+    """Identifica cualquier variante del nombre David."""
+    nombre_normalizado = normalizar_nombre(nombre)
+
+    return (
+        nombre_normalizado == "david"
+        or nombre_normalizado.startswith("david ")
     )
 
 
@@ -1113,7 +1123,11 @@ def grafico_categorias(datos):
         text="Cantidad",
         title="Tickets por producto",
         category_orders={
-            "Producto": CATEGORIAS_VISIBLES,
+            "Producto": (
+                PRODUCTOS_VISUALES
+                if "PRODUCTOS_VISUALES" in globals()
+                else CATEGORIAS_VISIBLES
+            ),
         },
         color_discrete_sequence=["#4C78A8"],
     )
@@ -1357,6 +1371,8 @@ def crear_grafico_barras_pdf(
 
 def generar_pdf_informe(
     df,
+    df_productos,
+    cantidad_tickets_david,
     total,
     cerrados,
     pendientes,
@@ -1690,6 +1706,10 @@ def generar_pdf_informe(
         ["Total de tickets", str(total)],
         ["Cerrados", str(cerrados)],
         [
+            "Total de tickets de David",
+            str(cantidad_tickets_david),
+        ],
+        [
             "Promedio resueltos por día",
             f"{promedio_resueltos_dia_pdf:.1f}",
         ],
@@ -1775,6 +1795,137 @@ def generar_pdf_informe(
     )
 
     elementos.append(tabla_resumen)
+    elementos.append(Spacer(1, 0.45 * cm))
+
+    elementos.append(
+        Paragraph(
+            "Distribución de tickets de David por producto",
+            estilo_subseccion,
+        )
+    )
+
+    david_pdf = df_productos[
+        df_productos["tecnico"].apply(es_david)
+    ].copy()
+
+    conteo_david_pdf = (
+        david_pdf[
+            david_pdf["categoria"].isin(
+                CATEGORIAS_VISIBLES
+            )
+        ]["categoria"]
+        .value_counts()
+        .reindex(
+            CATEGORIAS_VISIBLES,
+            fill_value=0,
+        )
+    )
+
+    datos_david_pdf = [
+        [
+            "Producto",
+            "Tickets de David",
+        ]
+    ]
+
+    for producto_david in CATEGORIAS_VISIBLES:
+        datos_david_pdf.append(
+            [
+                producto_david,
+                str(
+                    int(
+                        conteo_david_pdf.get(
+                            producto_david,
+                            0,
+                        )
+                    )
+                ),
+            ]
+        )
+
+    datos_david_pdf.append(
+        [
+            "Total",
+            str(
+                int(
+                    conteo_david_pdf.sum()
+                )
+            ),
+        ]
+    )
+
+    tabla_david_pdf = Table(
+        datos_david_pdf,
+        colWidths=[
+            8 * cm,
+            5 * cm,
+        ],
+        repeatRows=1,
+    )
+
+    tabla_david_pdf.setStyle(
+        TableStyle(
+            [
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (-1, 0),
+                    COLOR_PRINCIPAL,
+                ),
+                (
+                    "TEXTCOLOR",
+                    (0, 0),
+                    (-1, 0),
+                    colors.white,
+                ),
+                (
+                    "FONTNAME",
+                    (0, 0),
+                    (-1, 0),
+                    "Helvetica-Bold",
+                ),
+                (
+                    "BACKGROUND",
+                    (0, -1),
+                    (-1, -1),
+                    COLOR_SUAVE,
+                ),
+                (
+                    "FONTNAME",
+                    (0, -1),
+                    (-1, -1),
+                    "Helvetica-Bold",
+                ),
+                (
+                    "GRID",
+                    (0, 0),
+                    (-1, -1),
+                    0.5,
+                    colors.grey,
+                ),
+                (
+                    "ALIGN",
+                    (1, 1),
+                    (-1, -1),
+                    "CENTER",
+                ),
+            ]
+        )
+    )
+
+    elementos.append(
+        tabla_david_pdf
+    )
+
+    elementos.append(
+        Paragraph(
+            "Los tickets de David se incorporan al producto real "
+            "informado en el archivo Excel, pero David no participa "
+            "en las métricas de productividad ni desempeño por técnico.",
+            estilos["BodyText"],
+        )
+    )
+
     elementos.append(PageBreak())
 
     # -----------------------------------------------------
@@ -1809,15 +1960,19 @@ def generar_pdf_informe(
     )
 
     # Tickets por producto
+    productos_visuales_pdf = (
+        CATEGORIAS_VISIBLES.copy()
+    )
+
     por_producto_pdf = (
-        df[
-            df["categoria"].isin(
-                CATEGORIAS_VISIBLES
+        df_productos[
+            df_productos["producto_visual"].isin(
+                productos_visuales_pdf
             )
-        ]["categoria"]
+        ]["producto_visual"]
         .value_counts()
         .reindex(
-            CATEGORIAS_VISIBLES,
+            productos_visuales_pdf,
             fill_value=0,
         )
         .rename_axis("Producto")
@@ -1833,7 +1988,7 @@ def generar_pdf_informe(
             nota=(
                 "Productos: ContaPlus, eContabilidad, "
                 "eFacturacionElectronica, eRemuneraciones, "
-                "eRenta y Otros."
+                "eRenta."
             ),
         )
     )
@@ -2152,9 +2307,9 @@ def generar_pdf_informe(
     )
 
     resolucion_producto_pdf = (
-        df[
-            df["categoria"].isin(
-                CATEGORIAS_VISIBLES
+        df_productos[
+            df_productos["producto_visual"].isin(
+                productos_visuales_pdf
             )
         ]
         .assign(
@@ -2172,7 +2327,7 @@ def generar_pdf_informe(
         resumen_producto_pdf = (
             resolucion_producto_pdf
             .groupby(
-                "categoria",
+                "producto_visual",
                 as_index=False,
             )
             .agg(
@@ -2183,7 +2338,7 @@ def generar_pdf_informe(
             )
             .rename(
                 columns={
-                    "categoria": "Producto",
+                    "producto_visual": "Producto",
                     "Promedio_horas": "Promedio (h)",
                     "Mediana_horas": "Mediana (h)",
                     "Maximo_horas": "Máximo (h)",
@@ -2191,7 +2346,7 @@ def generar_pdf_informe(
             )
             .set_index("Producto")
             .reindex(
-                CATEGORIAS_VISIBLES
+                productos_visuales_pdf
             )
             .fillna(0)
             .reset_index()
@@ -2858,29 +3013,59 @@ def generar_pdf_informe(
                 repeatRows=1,
             )
 
+            estilos_indice_pdf = [
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (-1, 0),
+                    colors.lightgrey,
+                ),
+                (
+                    "FONTNAME",
+                    (0, 0),
+                    (-1, 0),
+                    "Helvetica-Bold",
+                ),
+                (
+                    "GRID",
+                    (0, 0),
+                    (-1, -1),
+                    0.4,
+                    colors.grey,
+                ),
+            ]
+
+            for numero_fila, (_, fila_indice) in enumerate(
+                indice_pdf.iterrows(),
+                start=1,
+            ):
+                if float(fila_indice["Nota desempeño"]) < 4:
+                    estilos_indice_pdf.extend(
+                        [
+                            (
+                                "BACKGROUND",
+                                (0, numero_fila),
+                                (-1, numero_fila),
+                                colors.HexColor("#D62728"),
+                            ),
+                            (
+                                "TEXTCOLOR",
+                                (0, numero_fila),
+                                (-1, numero_fila),
+                                colors.white,
+                            ),
+                            (
+                                "FONTNAME",
+                                (0, numero_fila),
+                                (-1, numero_fila),
+                                "Helvetica-Bold",
+                            ),
+                        ]
+                    )
+
             tabla_indice_pdf.setStyle(
                 TableStyle(
-                    [
-                        (
-                            "BACKGROUND",
-                            (0, 0),
-                            (-1, 0),
-                            colors.lightgrey,
-                        ),
-                        (
-                            "FONTNAME",
-                            (0, 0),
-                            (-1, 0),
-                            "Helvetica-Bold",
-                        ),
-                        (
-                            "GRID",
-                            (0, 0),
-                            (-1, -1),
-                            0.4,
-                            colors.grey,
-                        ),
-                    ]
+                    estilos_indice_pdf
                 )
             )
 
@@ -3182,9 +3367,24 @@ else:
 
 tickets = normalizar_datos(tickets)
 
-# Segunda exclusión de seguridad.
+# Segunda exclusión de seguridad para Neil.
 tickets = tickets[
     ~tickets["tecnico"].apply(tecnico_excluido)
+].copy()
+
+# Base general con todos los registros válidos, incluido David.
+tickets_metricas_generales = tickets.copy()
+
+# David se conserva por separado.
+tickets_david = tickets_metricas_generales[
+    tickets_metricas_generales["tecnico"].apply(es_david)
+].copy()
+
+# Base exclusiva para estadísticas de técnicos.
+# David no aparece como técnico ni participa en productividad,
+# comparación de técnicos o índice de desempeño.
+tickets = tickets_metricas_generales[
+    ~tickets_metricas_generales["tecnico"].apply(es_david)
 ].copy()
 
 
@@ -3314,19 +3514,77 @@ if (
 
 
 # =========================================================
+# FILTROS PARA LOS TICKETS DE DAVID
+# =========================================================
+
+tickets_david_filtrados = tickets_david.copy()
+
+if estado_seleccionado != "Todos":
+    tickets_david_filtrados = tickets_david_filtrados[
+        tickets_david_filtrados["estado"]
+        == estado_seleccionado
+    ]
+
+if categoria_seleccionada != "Todos":
+    tickets_david_filtrados = tickets_david_filtrados[
+        tickets_david_filtrados["categoria"]
+        == categoria_seleccionada
+    ]
+
+if (
+    isinstance(rango_fechas, (list, tuple))
+    and len(rango_fechas) == 2
+):
+    fecha_inicio, fecha_fin = rango_fechas
+
+    tickets_david_filtrados = tickets_david_filtrados[
+        tickets_david_filtrados[
+            "fecha_apertura"
+        ].dt.date.between(
+            fecha_inicio,
+            fecha_fin,
+        )
+    ]
+
+# Base general filtrada: técnicos regulares + David.
+tickets_generales_filtrados = pd.concat(
+    [
+        tickets_filtrados,
+        tickets_david_filtrados,
+    ],
+    ignore_index=True,
+)
+
+# Base para estadísticas por producto:
+# incluye los tickets de David en el producto real indicado
+# por la columna Producto del Excel.
+tickets_productos_filtrados = tickets_generales_filtrados.copy()
+
+tickets_productos_filtrados["producto_visual"] = (
+    tickets_productos_filtrados["categoria"]
+)
+
+PRODUCTOS_VISUALES = CATEGORIAS_VISIBLES.copy()
+
+cantidad_tickets_david = len(
+    tickets_david_filtrados
+)
+
+
+# =========================================================
 # ESTADÍSTICAS GENERALES
 # =========================================================
 
-total = len(tickets_filtrados)
+total = len(tickets_generales_filtrados)
 
 cerrados = int(
-    tickets_filtrados["cerrado"].sum()
+    tickets_generales_filtrados["cerrado"].sum()
 )
 
 pendientes = total - cerrados
 
 promedio_resolucion_horas = pd.to_numeric(
-    tickets_filtrados[
+    tickets_generales_filtrados[
         "tiempo_resolucion_horas"
     ],
     errors="coerce",
@@ -3394,6 +3652,15 @@ else:
 
 # Tickets resueltos el mismo día en que fueron creados.
 mascara_mismo_dia = (
+    tickets_generales_filtrados["fecha_apertura"].notna()
+    & tickets_generales_filtrados["fecha_cierre"].notna()
+    & (
+        tickets_generales_filtrados["fecha_apertura"].dt.date
+        == tickets_generales_filtrados["fecha_cierre"].dt.date
+    )
+)
+
+mascara_mismo_dia_tecnicos = (
     tickets_filtrados["fecha_apertura"].notna()
     & tickets_filtrados["fecha_cierre"].notna()
     & (
@@ -3408,7 +3675,7 @@ resueltos_mismo_dia = int(
 
 # Días distintos con resoluciones del mismo día.
 dias_analizados = (
-    tickets_filtrados.loc[
+    tickets_generales_filtrados.loc[
         mascara_mismo_dia,
         "fecha_cierre",
     ]
@@ -3432,13 +3699,18 @@ if dias_analizados > 0:
 else:
     promedio_resueltos_dia = 0.0
 
-# Promedio diario por técnico.
+# Promedio diario por técnico:
+# usa solo técnicos regulares, sin David.
+resueltos_mismo_dia_tecnicos = int(
+    mascara_mismo_dia_tecnicos.sum()
+)
+
 if (
     dias_analizados > 0
     and tecnicos_considerados > 0
 ):
     promedio_diario_tecnico = (
-        resueltos_mismo_dia
+        resueltos_mismo_dia_tecnicos
         / dias_analizados
         / tecnicos_considerados
     )
@@ -3508,6 +3780,78 @@ col8.metric(
     dias_analizados,
 )
 
+# ---------------------------------------------------------
+# RESUMEN DE DAVID POR PRODUCTO
+# ---------------------------------------------------------
+
+st.subheader(
+    "🧾 Tickets de David por producto"
+)
+
+conteo_david_producto = (
+    tickets_david_filtrados[
+        tickets_david_filtrados["categoria"].isin(
+            CATEGORIAS_VISIBLES
+        )
+    ]["categoria"]
+    .value_counts()
+    .reindex(
+        CATEGORIAS_VISIBLES,
+        fill_value=0,
+    )
+)
+
+tickets_david_contaplus = int(
+    conteo_david_producto.get(
+        "ContaPlus",
+        0,
+    )
+)
+
+tickets_david_otros_productos = int(
+    conteo_david_producto.drop(
+        labels=["ContaPlus"],
+        errors="ignore",
+    ).sum()
+)
+
+col_david1, col_david2, col_david3 = st.columns(3)
+
+col_david1.metric(
+    "📘 ContaPlus - David",
+    tickets_david_contaplus,
+)
+
+col_david2.metric(
+    "📚 Otros productos - David",
+    tickets_david_otros_productos,
+)
+
+col_david3.metric(
+    "🧾 Total tickets - David",
+    cantidad_tickets_david,
+)
+
+detalle_david_producto = (
+    conteo_david_producto
+    .rename_axis("Producto")
+    .reset_index(name="Tickets de David")
+)
+
+st.dataframe(
+    detalle_david_producto,
+    use_container_width=True,
+    hide_index=True,
+)
+
+st.caption(
+    "Los tickets de David se suman al producto real indicado en el Excel. "
+    "Por ejemplo, sus tickets de eContabilidad se incorporan a "
+    "eContabilidad y sus tickets de eRemuneraciones se incorporan a "
+    "eRemuneraciones. David no aparece como técnico en productividad, "
+    "comparación ni índice de desempeño."
+)
+
 st.caption(
     "El promedio diario por técnico se calcula con los tickets "
     "resueltos el mismo día, dividido por los días analizados "
@@ -3552,14 +3896,14 @@ with col_grafico1:
 
 with col_grafico2:
     por_categoria = (
-        tickets_filtrados[
-            tickets_filtrados["categoria"].isin(
-                CATEGORIAS_VISIBLES
+        tickets_productos_filtrados[
+            tickets_productos_filtrados["producto_visual"].isin(
+                PRODUCTOS_VISUALES
             )
-        ]["categoria"]
+        ]["producto_visual"]
         .value_counts()
         .reindex(
-            CATEGORIAS_VISIBLES,
+            PRODUCTOS_VISUALES,
             fill_value=0,
         )
         .rename_axis("Producto")
@@ -3577,9 +3921,8 @@ with col_grafico2:
         )
 
     st.caption(
-        "El gráfico muestra la cantidad de tickets de ContaPlus, "
-        "eContabilidad, eFacturacionElectronica, eRemuneraciones, "
-        "eRenta y Otros."
+        "Cada ticket, incluidos los de David, se suma al producto "
+        "informado en la columna Producto del Excel."
     )
 
 # =========================================================
@@ -3723,7 +4066,7 @@ st.subheader(
 )
 
 tickets_por_fecha = (
-    tickets_filtrados
+    tickets_generales_filtrados
     .dropna(
         subset=["fecha_apertura"]
     )
@@ -3773,9 +4116,9 @@ st.subheader(
 )
 
 resolucion_producto = (
-    tickets_filtrados[
-        tickets_filtrados["categoria"].isin(
-            CATEGORIAS_VISIBLES
+    tickets_productos_filtrados[
+        tickets_productos_filtrados["producto_visual"].isin(
+            PRODUCTOS_VISUALES
         )
     ]
     .assign(
@@ -3793,7 +4136,7 @@ if not resolucion_producto.empty:
     resumen_resolucion_producto = (
         resolucion_producto
         .groupby(
-            "categoria",
+            "producto_visual",
             as_index=False,
         )
         .agg(
@@ -3804,7 +4147,7 @@ if not resolucion_producto.empty:
         )
         .rename(
             columns={
-                "categoria": "Producto",
+                "producto_visual": "Producto",
                 "Promedio_horas": "Promedio (h)",
                 "Mediana_horas": "Mediana (h)",
                 "Maximo_horas": "Máximo (h)",
@@ -3812,7 +4155,7 @@ if not resolucion_producto.empty:
         )
         .set_index("Producto")
         .reindex(
-            CATEGORIAS_VISIBLES
+            PRODUCTOS_VISUALES
         )
         .fillna(0)
         .reset_index()
@@ -3835,7 +4178,7 @@ if not resolucion_producto.empty:
         text="Promedio (h)",
         title="Tiempo promedio de resolución por producto",
         category_orders={
-            "Producto": CATEGORIAS_VISIBLES,
+            "Producto": PRODUCTOS_VISUALES,
         },
         color_discrete_sequence=["#4C78A8"],
     )
@@ -4031,9 +4374,9 @@ st.subheader(
     "🕒 Tiempo calendario hasta el cierre"
 )
 
-cierres_dias = tickets_filtrados[
-    tickets_filtrados["fecha_apertura"].notna()
-    & tickets_filtrados["fecha_cierre"].notna()
+cierres_dias = tickets_generales_filtrados[
+    tickets_generales_filtrados["fecha_apertura"].notna()
+    & tickets_generales_filtrados["fecha_cierre"].notna()
 ].copy()
 
 if not cierres_dias.empty:
@@ -4203,12 +4546,27 @@ if not indice_desempeno.empty:
         ascending=False,
     )
 
+    tabla_indice["Estado nota"] = tabla_indice[
+        "Nota desempeño"
+    ].apply(
+        lambda nota: (
+            "Inferior a 4"
+            if float(nota) < 4
+            else "4 o superior"
+        )
+    )
+
     figura_indice = px.bar(
         tabla_indice,
         x="Técnico",
         y="Nota desempeño",
         text="Nota desempeño",
+        color="Estado nota",
         title="Índice de desempeño por técnico (escala 1 a 7)",
+        color_discrete_map={
+            "Inferior a 4": "#D62728",
+            "4 o superior": "#4C78A8",
+        },
     )
 
     figura_indice.update_traces(
@@ -4228,8 +4586,36 @@ if not indice_desempeno.empty:
         use_container_width=True,
     )
 
+    def resaltar_notas_bajas(fila):
+        """
+        Marca en rojo a los técnicos con nota inferior a 4.
+        """
+        try:
+            nota = float(fila["Nota desempeño"])
+        except (TypeError, ValueError):
+            nota = 7
+
+        if nota < 4:
+            return [
+                (
+                    "background-color: #D62728; "
+                    "color: white; "
+                    "font-weight: bold;"
+                )
+            ] * len(fila)
+
+        return [""] * len(fila)
+
+    tabla_indice_mostrar = tabla_indice.drop(
+        columns=["Estado nota"],
+        errors="ignore",
+    )
+
     st.dataframe(
-        tabla_indice,
+        tabla_indice_mostrar.style.apply(
+            resaltar_notas_bajas,
+            axis=1,
+        ),
         use_container_width=True,
         hide_index=True,
     )
@@ -4535,7 +4921,9 @@ st.subheader(
 
 if REPORTLAB_DISPONIBLE:
     pdf_bytes = generar_pdf_informe(
-        df=tickets_filtrados,
+        df=tickets_generales_filtrados,
+        df_productos=tickets_productos_filtrados,
+        cantidad_tickets_david=cantidad_tickets_david,
         total=total,
         cerrados=cerrados,
         pendientes=pendientes,
@@ -4597,11 +4985,11 @@ columnas_mostrar = [
 columnas_existentes = [
     columna
     for columna in columnas_mostrar
-    if columna in tickets_filtrados.columns
+    if columna in tickets_generales_filtrados.columns
 ]
 
 st.dataframe(
-    tickets_filtrados[
+    tickets_generales_filtrados[
         columnas_existentes
     ],
     use_container_width=True,
