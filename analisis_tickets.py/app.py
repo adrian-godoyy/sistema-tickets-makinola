@@ -9,9 +9,16 @@ import streamlit as st
 try:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.lib.styles import (
+        ParagraphStyle,
+        getSampleStyleSheet,
+    )
     from reportlab.lib.units import cm
     from reportlab.platypus import (
+        HRFlowable,
+        Image,
+        KeepTogether,
         PageBreak,
         Paragraph,
         SimpleDocTemplate,
@@ -38,8 +45,6 @@ st.set_page_config(
 )
 
 BASE_DIR = Path(__file__).resolve().parent
-ARCHIVO_CSV = BASE_DIR / "datos" / "tickets.csv"
-
 LOGO = BASE_DIR / "makinola3000.png"
 
 CATEGORIAS_VISIBLES = [
@@ -1282,22 +1287,106 @@ def generar_pdf_informe(
     estilos = getSampleStyleSheet()
     elementos = []
 
-    elementos.append(
-        Paragraph(
-            "Informe de Análisis de Tickets de Soporte",
-            estilos["Title"],
-        )
+    # Colores corporativos del informe.
+    COLOR_PRINCIPAL = colors.HexColor("#172A3A")
+    COLOR_SECUNDARIO = colors.HexColor("#2E5D7B")
+    COLOR_ACENTO = colors.HexColor("#D4A72C")
+    COLOR_SUAVE = colors.HexColor("#EAF0F4")
+    COLOR_TEXTO = colors.HexColor("#263238")
+
+    fecha_generacion = datetime.now()
+
+    estilo_portada_titulo = ParagraphStyle(
+        "PortadaTitulo",
+        parent=estilos["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=26,
+        leading=31,
+        alignment=TA_CENTER,
+        textColor=COLOR_PRINCIPAL,
+        spaceAfter=14,
     )
 
-    elementos.append(
-        Paragraph(
-            "Generado: "
-            + datetime.now().strftime("%d-%m-%Y %H:%M"),
-            estilos["BodyText"],
-        )
+    estilo_portada_subtitulo = ParagraphStyle(
+        "PortadaSubtitulo",
+        parent=estilos["BodyText"],
+        fontName="Helvetica",
+        fontSize=13,
+        leading=18,
+        alignment=TA_CENTER,
+        textColor=COLOR_SECUNDARIO,
+        spaceAfter=10,
     )
 
-    elementos.append(Spacer(1, 0.4 * cm))
+    estilo_seccion = ParagraphStyle(
+        "SeccionCorporativa",
+        parent=estilos["Heading2"],
+        fontName="Helvetica-Bold",
+        fontSize=17,
+        leading=21,
+        textColor=COLOR_PRINCIPAL,
+        spaceBefore=5,
+        spaceAfter=10,
+    )
+
+    estilo_subseccion = ParagraphStyle(
+        "SubseccionCorporativa",
+        parent=estilos["Heading3"],
+        fontName="Helvetica-Bold",
+        fontSize=12,
+        leading=15,
+        textColor=COLOR_SECUNDARIO,
+        spaceBefore=6,
+        spaceAfter=7,
+    )
+
+    estilo_indice = ParagraphStyle(
+        "Indice",
+        parent=estilos["BodyText"],
+        fontName="Helvetica",
+        fontSize=11,
+        leading=20,
+        leftIndent=1.0 * cm,
+        textColor=COLOR_TEXTO,
+    )
+
+    def agregar_pie_pagina(canvas, doc):
+        """Agrega fecha, marca y número de página."""
+        canvas.saveState()
+
+        ancho_pagina, _ = landscape(A4)
+
+        canvas.setStrokeColor(COLOR_SECUNDARIO)
+        canvas.setLineWidth(0.5)
+        canvas.line(
+            doc.leftMargin,
+            0.72 * cm,
+            ancho_pagina - doc.rightMargin,
+            0.72 * cm,
+        )
+
+        canvas.setFont("Helvetica", 7.5)
+        canvas.setFillColor(colors.HexColor("#5F6B73"))
+
+        canvas.drawString(
+            doc.leftMargin,
+            0.38 * cm,
+            "MAKINOLA 3000 - Sistema Inteligente de Análisis de Tickets",
+        )
+
+        canvas.drawCentredString(
+            ancho_pagina / 2,
+            0.38 * cm,
+            fecha_generacion.strftime("Generado el %d-%m-%Y a las %H:%M"),
+        )
+
+        canvas.drawRightString(
+            ancho_pagina - doc.rightMargin,
+            0.38 * cm,
+            f"Página {doc.page}",
+        )
+
+        canvas.restoreState()
 
     filtros = [
         f"Técnico: {tecnico_filtro}",
@@ -1313,21 +1402,148 @@ def generar_pdf_informe(
             f"Período: {rango_fechas[0]} al {rango_fechas[1]}"
         )
 
+    # -----------------------------------------------------
+    # PORTADA
+    # -----------------------------------------------------
+    elementos.append(Spacer(1, 1.0 * cm))
+
+    if LOGO.exists():
+        logo_pdf = Image(
+            str(LOGO),
+            width=4.4 * cm,
+            height=4.4 * cm,
+        )
+        logo_pdf.hAlign = "CENTER"
+        elementos.append(logo_pdf)
+        elementos.append(Spacer(1, 0.25 * cm))
+
     elementos.append(
         Paragraph(
-            "<b>Filtros aplicados</b>",
-            estilos["Heading2"],
+            "MAKINOLA 3000",
+            estilo_portada_subtitulo,
         )
     )
 
     elementos.append(
         Paragraph(
-            " | ".join(filtros),
+            "Informe de Análisis de Tickets de Soporte",
+            estilo_portada_titulo,
+        )
+    )
+
+    elementos.append(
+        HRFlowable(
+            width="72%",
+            thickness=2,
+            color=COLOR_ACENTO,
+            spaceBefore=8,
+            spaceAfter=16,
+            hAlign="CENTER",
+        )
+    )
+
+    elementos.append(
+        Paragraph(
+            "Dashboard de productividad, tiempos de respuesta, "
+            "programas, entornos y cumplimiento operativo.",
+            estilo_portada_subtitulo,
+        )
+    )
+
+    elementos.append(Spacer(1, 0.6 * cm))
+
+    portada_datos = [
+        ["Fecha de generación", fecha_generacion.strftime("%d-%m-%Y %H:%M")],
+        ["Total de registros analizados", str(len(df))],
+        ["Filtros aplicados", " | ".join(filtros)],
+    ]
+
+    tabla_portada = Table(
+        portada_datos,
+        colWidths=[5.2 * cm, 16.5 * cm],
+    )
+
+    tabla_portada.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, -1), COLOR_PRINCIPAL),
+                ("TEXTCOLOR", (0, 0), (0, -1), colors.white),
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("BACKGROUND", (1, 0), (1, -1), COLOR_SUAVE),
+                ("TEXTCOLOR", (1, 0), (1, -1), COLOR_TEXTO),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.white),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 9),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
+
+    elementos.append(tabla_portada)
+    elementos.append(PageBreak())
+
+    # -----------------------------------------------------
+    # ÍNDICE
+    # -----------------------------------------------------
+    elementos.append(
+        Paragraph(
+            "Índice del informe",
+            estilo_seccion,
+        )
+    )
+
+    elementos.append(
+        HRFlowable(
+            width="100%",
+            thickness=1,
+            color=COLOR_ACENTO,
+            spaceAfter=10,
+        )
+    )
+
+    indice_items = [
+        "1. Resumen general e indicadores principales",
+        "2. Visualizaciones principales",
+        "3. Productividad del primer ticket diario",
+        "4. Distribución de programas por técnico",
+        "5. Analítica avanzada y cumplimiento SLA",
+        "6. Productividad diaria y evolución semanal",
+        "7. Índice de desempeño",
+        "8. Resumen ejecutivo",
+        "9. Detalle completo de tickets",
+    ]
+
+    for item in indice_items:
+        elementos.append(
+            Paragraph(
+                item,
+                estilo_indice,
+            )
+        )
+
+    elementos.append(PageBreak())
+
+    # -----------------------------------------------------
+    # RESUMEN GENERAL
+    # -----------------------------------------------------
+    elementos.append(
+        Paragraph(
+            "1. Resumen general",
+            estilo_seccion,
+        )
+    )
+
+    elementos.append(
+        Paragraph(
+            "Los resultados siguientes respetan todos los filtros "
+            "seleccionados en la aplicación.",
             estilos["BodyText"],
         )
     )
 
-    elementos.append(Spacer(1, 0.4 * cm))
+    elementos.append(Spacer(1, 0.25 * cm))
 
     mascara_mismo_dia_pdf = (
         df["fecha_apertura"].notna()
@@ -1404,7 +1620,13 @@ def generar_pdf_informe(
                     "BACKGROUND",
                     (0, 0),
                     (-1, 0),
-                    colors.lightgrey,
+                    COLOR_PRINCIPAL,
+                ),
+                (
+                    "TEXTCOLOR",
+                    (0, 0),
+                    (-1, 0),
+                    colors.white,
                 ),
                 (
                     "FONTNAME",
@@ -1413,26 +1635,56 @@ def generar_pdf_informe(
                     "Helvetica-Bold",
                 ),
                 (
+                    "BACKGROUND",
+                    (0, 1),
+                    (-1, -1),
+                    COLOR_SUAVE,
+                ),
+                (
+                    "TEXTCOLOR",
+                    (0, 1),
+                    (-1, -1),
+                    COLOR_TEXTO,
+                ),
+                (
                     "GRID",
                     (0, 0),
                     (-1, -1),
                     0.5,
-                    colors.grey,
+                    colors.white,
+                ),
+                (
+                    "VALIGN",
+                    (0, 0),
+                    (-1, -1),
+                    "MIDDLE",
+                ),
+                (
+                    "TOPPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    7,
+                ),
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    7,
                 ),
             ]
         )
     )
 
     elementos.append(tabla_resumen)
-    elementos.append(Spacer(1, 0.5 * cm))
+    elementos.append(PageBreak())
 
     # -----------------------------------------------------
     # VISUALIZACIONES PRINCIPALES DEL PDF
     # -----------------------------------------------------
     elementos.append(
         Paragraph(
-            "Visualizaciones principales",
-            estilos["Heading2"],
+            "2. Visualizaciones principales",
+            estilo_seccion,
         )
     )
 
@@ -1538,8 +1790,8 @@ def generar_pdf_informe(
 
     elementos.append(
         Paragraph(
-            "Productividad del primer ticket diario",
-            estilos["Heading2"],
+            "3. Productividad del primer ticket diario",
+            estilo_seccion,
         )
     )
 
@@ -1653,8 +1905,8 @@ def generar_pdf_informe(
 
     elementos.append(
         Paragraph(
-            "Tickets atendidos por técnico y categoría",
-            estilos["Heading2"],
+            "4. Tickets atendidos por técnico y categoría",
+            estilo_seccion,
         )
     )
 
@@ -1801,8 +2053,8 @@ def generar_pdf_informe(
 
     elementos.append(
         Paragraph(
-            "Analítica avanzada",
-            estilos["Heading2"],
+            "5. Analítica avanzada",
+            estilo_seccion,
         )
     )
 
@@ -2891,7 +3143,11 @@ def generar_pdf_informe(
 
     elementos.append(tabla_detalle)
 
-    documento.build(elementos)
+    documento.build(
+        elementos,
+        onFirstPage=agregar_pie_pagina,
+        onLaterPages=agregar_pie_pagina,
+    )
     buffer.seek(0)
 
     return buffer.getvalue()
@@ -2919,24 +3175,31 @@ archivo_subido = st.sidebar.file_uploader(
 )
 
 if archivo_subido is None:
-    if not ARCHIVO_CSV.exists():
-        st.title(
-            "🎫 Sistema Inteligente de Análisis de Tickets"
-        )
-
-        st.info(
-            "Carga un archivo CSV o Excel desde la barra lateral."
-        )
-
-        st.stop()
-
-    tickets = pd.read_csv(
-        ARCHIVO_CSV
+    # No mostrar resultados de ejemplo al abrir la aplicación.
+    st.title(
+        "🎫 Sistema Inteligente de Análisis de Tickets"
     )
 
-    st.sidebar.info(
-        "Usando archivo predeterminado: datos/tickets.csv"
+    st.markdown(
+        """
+        ### Bienvenido
+
+        Para comenzar el análisis:
+
+        1. Presiona **Upload** en la barra lateral.
+        2. Selecciona el archivo CSV o Excel exportado.
+        3. Espera unos segundos mientras se procesan los datos.
+        4. Revisa los indicadores, gráficos y descarga el informe PDF.
+
+        **La aplicación no guarda permanentemente el archivo cargado.**
+        """
     )
+
+    st.info(
+        "📂 Carga un archivo CSV o Excel para visualizar los resultados."
+    )
+
+    st.stop()
 
 else:
     nombre_archivo = archivo_subido.name.lower()
@@ -4434,7 +4697,8 @@ if REPORTLAB_DISPONIBLE:
     )
 
     st.caption(
-        "El PDF respeta los filtros actuales."
+        "El PDF respeta los filtros actuales e incluye portada, "
+        "logo, índice, gráficos, fecha de generación y numeración de páginas."
     )
 else:
     st.warning(
