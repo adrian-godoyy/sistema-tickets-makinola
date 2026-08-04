@@ -1,0 +1,6 @@
+id,fecha_apertura,fecha_cierre,cliente,tecnico,asunto,descripcion,categoria,subcategoria,prioridad,estado,tiempo_primera_respuesta_horas,tiempo_resolucion_horas
+1,2026-07-01 09:10,2026-07-01 10:40,Empresa A,Adrian,Error en remuneraciones,No permite generar el libro de remuneraciones,Remuneraciones,Libro de remuneraciones,Alta,Cerrado,0.25,1.5
+2,2026-07-02 10:00,2026-07-02 12:00,Empresa B,neil,Problema contable,No cuadra el balance mensual,Contabilidad,Balance,Media,Cerrado,0.5,2
+3,2026-07-03 08:30,2026-07-03 12:30,Empresa C,Adrian,Error base de datos,El sistema no conecta con la base de datos,Base de datos,Conexion,Alta,Cerrado,0.2,4
+4,2026-07-04 11:15,,Empresa A,oly,Problema imposiciones,Diferencia entre Previred y las imposiciones,Remuneraciones,Imposiciones,Alta,Pendiente,0.75,
+5,2026-07-05 15:00,2026-07-05 15:30,Empresa D,neil,Error facturacion,No permite emitir una factura electronica,Facturacion,Emision de documentos,Media,Cerrado,0.1,0.5
