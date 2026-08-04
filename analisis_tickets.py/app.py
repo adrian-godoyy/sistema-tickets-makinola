@@ -1040,8 +1040,7 @@ def calcular_indice_desempeno(df, resumen_productividad):
         + base["score_rapidez"] * 0.30
         + base["score_primer_ticket"] * 0.15
         + base["score_regularidad"] * 0.20
-    ) / peso_total
-
+    ) 
     # Convertir de 0..1 a escala 1..7.
     base["Nota desempeño"] = (
         1 + base["indice_0_1"].clip(0, 1) * 6
