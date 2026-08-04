@@ -2892,10 +2892,11 @@ def generar_pdf_informe(
 
             elementos.append(
                 Paragraph(
-                    "La nota combina 40% volumen de tickets, "
-                    "25% rapidez de resolución, "
-                    "20% rapidez del primer ticket y "
-                    "15% regularidad diaria.",
+                    "La nota combina 35% volumen de tickets, "
+                    "30% rapidez de resolución, "
+                    "15% rapidez del primer ticket y "
+                    "15% regularidad diaria. "
+                    "Los porcentajes se normalizan porque suman 95%.",
                     estilos["BodyText"],
                 )
             )
@@ -4226,8 +4227,9 @@ if not indice_desempeno.empty:
     )
 
     st.caption(
-        "La nota combina 40% volumen de tickets, 25% rapidez de resolución, "
-        "20% rapidez del primer ticket y 15% regularidad diaria."
+        "La nota combina 35% volumen de tickets, 30% rapidez de resolución, "
+        "15% rapidez del primer ticket y 15% regularidad diaria. "
+        "Los porcentajes se normalizan porque suman 95%."
     )
 
 st.divider()
