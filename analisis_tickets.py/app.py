@@ -1029,7 +1029,7 @@ def calcular_indice_desempeno(df, resumen_productividad):
     # - 35% volumen de tickets
     # - 30% rapidez de resolución
     # - 15% rapidez del primer ticket
-    # - 15% regularidad diaria
+    # - 20% regularidad diaria
     #
     # Los pesos suman 95%. Se dividen por 0.95 para conservar
     # una escala completa de 0 a 1 antes de convertirla a nota 1 a 7.
@@ -1039,7 +1039,7 @@ def calcular_indice_desempeno(df, resumen_productividad):
         base["score_volumen"] * 0.35
         + base["score_rapidez"] * 0.30
         + base["score_primer_ticket"] * 0.15
-        + base["score_regularidad"] * 0.15
+        + base["score_regularidad"] * 0.20
     ) / peso_total
 
     # Convertir de 0..1 a escala 1..7.
