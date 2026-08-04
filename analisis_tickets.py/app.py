@@ -1025,22 +1025,21 @@ def calcular_indice_desempeno(df, resumen_productividad):
         base["rango_diario"]
     )
 
-    # Pesos solicitados:
+    # Pesos del índice de desempeño:
     # - 35% volumen de tickets
     # - 30% rapidez de resolución
     # - 15% rapidez del primer ticket
     # - 20% regularidad diaria
-    
-
-     # sos suman 100%, por lo que no es necesario normalizar.
-   
+    #
+    # Los pesos suman 100%, por lo que no se normalizan.
 
     base["indice_0_1"] = (
         base["score_volumen"] * 0.35
         + base["score_rapidez"] * 0.30
         + base["score_primer_ticket"] * 0.15
         + base["score_regularidad"] * 0.20
-    ) 
+    )
+
     # Convertir de 0..1 a escala 1..7.
     base["Nota desempeño"] = (
         1 + base["indice_0_1"].clip(0, 1) * 6
@@ -2894,8 +2893,7 @@ def generar_pdf_informe(
                     "La nota combina 35% volumen de tickets, "
                     "30% rapidez de resolución, "
                     "15% rapidez del primer ticket y "
-                    "15% regularidad diaria. "
-                    "Los porcentajes se normalizan porque suman 95%.",
+                    "20% regularidad diaria.",
                     estilos["BodyText"],
                 )
             )
@@ -3447,12 +3445,17 @@ if (
 else:
     promedio_diario_tecnico = 0.0
 
-respuesta_promedio_horas = pd.to_numeric(
-    tickets_filtrados[
-        "tiempo_primera_respuesta_horas"
-    ],
-    errors="coerce",
-).mean()
+# El KPI usa exactamente la misma métrica de la tabla
+# "Productividad por técnico": demora promedio del primer ticket.
+if resumen_productividad.empty:
+    tiempo_promedio_primer_ticket_min = pd.NA
+else:
+    tiempo_promedio_primer_ticket_min = pd.to_numeric(
+        resumen_productividad[
+            "demora_promedio_min"
+        ],
+        errors="coerce",
+    ).mean()
 
 # Primera fila.
 col1, col2, col3 = st.columns(3)
@@ -3488,9 +3491,15 @@ col6.metric(
 )
 
 col7.metric(
-    "⚡ Primera respuesta promedio",
-    formato_horas(
-        respuesta_promedio_horas
+    "⚡ Tiempo promedio del primer ticket",
+    formato_minutos(
+        tiempo_promedio_primer_ticket_min
+    ),
+    help=(
+        "Promedio de la demora de cada técnico desde la asignación "
+        "hasta el cierre de su primer ticket diario. "
+        "Este valor se calcula con la misma información mostrada "
+        "en la tabla Productividad por técnico."
     ),
 )
 
@@ -4226,10 +4235,8 @@ if not indice_desempeno.empty:
     )
 
     st.caption(
-        "La nota combina 35% volumen de tickets, "
-    "30% rapidez de resolución, "
-    "15% rapidez del primer ticket y "
-    "20% regularidad diaria."
+        "La nota combina 35% volumen de tickets, 30% rapidez de resolución, "
+        "15% rapidez del primer ticket y 20% regularidad diaria."
     )
 
 st.divider()
