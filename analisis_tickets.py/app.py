@@ -4226,9 +4226,10 @@ if not indice_desempeno.empty:
     )
 
     st.caption(
-        "La nota combina 35% volumen de tickets, 30% rapidez de resolución, "
-        "15% rapidez del primer ticket y 15% regularidad diaria. "
-        "Los porcentajes se normalizan porque suman 95%."
+        "La nota combina 35% volumen de tickets, "
+    "30% rapidez de resolución, "
+    "15% rapidez del primer ticket y "
+    "20% regularidad diaria."
     )
 
 st.divider()
