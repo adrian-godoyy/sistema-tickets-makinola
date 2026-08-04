@@ -48,10 +48,11 @@ BASE_DIR = Path(__file__).resolve().parent
 LOGO = BASE_DIR / "makinola3000.png"
 
 CATEGORIAS_VISIBLES = [
-    "Contabilidad",
-    "Remuneraciones",
-    "Renta",
-    "Facturación",
+    "ContaPlus",
+    "eContabilidad",
+    "eFacturacionElectronica",
+    "eRemuneraciones",
+    "eRenta",
 ]
 
 ENTORNOS_VISIBLES = [
@@ -186,149 +187,220 @@ def formato_hora_decimal(valor):
 # CLASIFICACIÓN AUTOMÁTICA
 # =========================================================
 
-def clasificar_ticket(asunto, etiqueta_programa=None):
+def clasificar_ticket(asunto, etiqueta_producto=None):
     """
-    Clasifica únicamente en:
-    Contabilidad, Remuneraciones, Renta o Facturación.
+    Clasifica cada ticket en uno de estos productos:
 
-    Se prioriza E1 / Etiqueta 1 del modelo_v1.xlsx.
-    No existe la categoría Otros.
+    - ContaPlus
+    - eContabilidad
+    - eFacturacionElectronica
+    - eRemuneraciones
+    - eRenta
+
+    Se prioriza E1 / Etiqueta 1 del archivo Excel.
+    Si la etiqueta no viene informada, se intenta clasificar por el asunto.
     """
     texto = limpiar_texto(asunto).lower()
-    etiqueta = limpiar_texto(etiqueta_programa).lower()
+    etiqueta = limpiar_texto(etiqueta_producto).lower()
 
-    combinado = f"{etiqueta} {texto}"
+    # Normalización simple para reconocer variantes.
+    etiqueta_compacta = (
+        etiqueta
+        .replace(" ", "")
+        .replace("_", "")
+        .replace("-", "")
+        .replace("ó", "o")
+        .replace("í", "i")
+        .replace("á", "a")
+        .replace("é", "e")
+        .replace("ú", "u")
+    )
 
-    # Etiquetas directas del modelo final.
-    if etiqueta in {
-        "eremuneraciones",
-        "remuneraciones",
+    texto_normalizado = (
+        texto
+        .replace("ó", "o")
+        .replace("í", "i")
+        .replace("á", "a")
+        .replace("é", "e")
+        .replace("ú", "u")
+    )
+
+    # -----------------------------------------------------
+    # CLASIFICACIÓN DIRECTA POR E1 / ETIQUETA 1
+    # -----------------------------------------------------
+    if etiqueta_compacta in {
+        "contaplus",
+        "conta+",
     }:
-        return "Remuneraciones"
+        return "ContaPlus"
 
-    if etiqueta in {
-        "erenta",
-        "renta",
-    }:
-        return "Renta"
-
-    if etiqueta in {
-        "efacturacionelectronica",
-        "facturacion",
-        "facturación",
-        "facturacion electronica",
-        "facturación electrónica",
-    }:
-        return "Facturación"
-
-    if etiqueta in {
+    if etiqueta_compacta in {
         "econtabilidad",
-        "contabilidad",
+        "contabilidadelectronica",
+    }:
+        return "eContabilidad"
+
+    if etiqueta_compacta in {
+        "efacturacionelectronica",
+        "facturacionelectronica",
+        "efacturacion",
+    }:
+        return "eFacturacionElectronica"
+
+    if etiqueta_compacta in {
+        "eremuneraciones",
+        "remuneracioneselectronicas",
+        "eremuneracion",
+    }:
+        return "eRemuneraciones"
+
+    if etiqueta_compacta in {
+        "erenta",
+        "rentaelectronica",
+    }:
+        return "eRenta"
+
+    if etiqueta_compacta in {
+        "otros",
+        "otro",
+    }:
+        return "Otros"
+
+    # -----------------------------------------------------
+    # CLASIFICACIÓN AUXILIAR POR ASUNTO
+    # -----------------------------------------------------
+    palabras_contaplus = [
         "contaplus",
         "conta plus",
-    }:
-        return "Contabilidad"
+        "conta+",
+        "plan de cuentas",
+        "libro diario",
+        "libro mayor",
+        "asiento contable",
+        "centralizacion",
+        "balance",
+    ]
+
+    palabras_econtabilidad = [
+        "econtabilidad",
+        "contabilidad electronica",
+        "registro de compras",
+        "registro de ventas",
+        "libro electronico",
+        "conciliacion",
+        "comprobante contable",
+    ]
+
+    palabras_facturacion = [
+        "efacturacionelectronica",
+        "facturacion electronica",
+        "factura electronica",
+        "boleta electronica",
+        "nota de credito",
+        "nota de debito",
+        "dte",
+        "documento tributario electronico",
+    ]
 
     palabras_remuneraciones = [
-        "remuneracion",
+        "eremuneraciones",
         "remuneraciones",
-        "sueldo",
         "liquidacion",
-        "liquidación",
+        "sueldo",
         "previred",
-        "imposiciones",
         "afp",
         "fonasa",
         "isapre",
         "finiquito",
-        "haberes",
-        "gratificacion",
-        "gratificación",
         "libro de remuneraciones",
         "lre",
-        "contrato",
+        "haberes",
+        "descuentos",
         "vacaciones",
         "licencia",
     ]
 
     palabras_renta = [
-        "renta",
+        "erenta",
         "operacion renta",
-        "operación renta",
         "declaracion de renta",
-        "declaración de renta",
         "formulario 22",
         "f22",
         "declaracion jurada",
-        "declaración jurada",
         "dj ",
         "dj1847",
-        "dj 1847",
         "dj1866",
-        "dj 1866",
         "dj1887",
-        "dj 1887",
         "dj1945",
-        "dj 1945",
         "dj1946",
-        "dj 1946",
         "honorarios",
         "impuesto a la renta",
     ]
 
-    palabras_facturacion = [
-        "factura",
-        "facturacion",
-        "facturación",
-        "factura electronica",
-        "factura electrónica",
-        "boleta electronica",
-        "boleta electrónica",
-        "nota de credito",
-        "nota de crédito",
-        "nota de debito",
-        "nota de débito",
-        "dte",
-        "documento tributario",
-    ]
+    if any(palabra in texto_normalizado for palabra in palabras_contaplus):
+        return "ContaPlus"
 
-    palabras_contabilidad = [
-        "contabilidad",
-        "contable",
-        "contaplus",
-        "conta plus",
-        "balance",
-        "libro diario",
-        "libro mayor",
-        "centralizacion",
-        "centralización",
-        "asiento",
-        "cuenta contable",
-        "plan de cuentas",
-        "comprobante",
-        "conciliacion",
-        "conciliación",
-        "activo fijo",
-        "depreciacion",
-        "depreciación",
-        "cierre contable",
-        "registro de compras",
-    ]
+    if any(palabra in texto_normalizado for palabra in palabras_econtabilidad):
+        return "eContabilidad"
 
-    if any(palabra in combinado for palabra in palabras_remuneraciones):
-        return "Remuneraciones"
+    if any(palabra in texto_normalizado for palabra in palabras_facturacion):
+        return "eFacturacionElectronica"
 
-    if any(palabra in combinado for palabra in palabras_renta):
-        return "Renta"
+    if any(palabra in texto_normalizado for palabra in palabras_remuneraciones):
+        return "eRemuneraciones"
 
-    if any(palabra in combinado for palabra in palabras_facturacion):
-        return "Facturación"
+    if any(palabra in texto_normalizado for palabra in palabras_renta):
+        return "eRenta"
 
-    if any(palabra in combinado for palabra in palabras_contabilidad):
-        return "Contabilidad"
+    return "Otros"
 
-    # Respaldo solicitado: no crear categoría "Otros".
-    return "Contabilidad"
+
+
+def normalizar_producto_excel(valor):
+    """
+    Normaliza directamente el valor de la columna Producto del Excel.
+
+    Productos permitidos:
+    - ContaPlus
+    - eContabilidad
+    - eFacturacionElectronica
+    - eRemuneraciones
+    - eRenta
+
+    Cualquier otro valor se descarta del análisis.
+    """
+    producto = limpiar_texto(valor)
+
+    if not producto:
+        return pd.NA
+
+    compacto = (
+        producto.lower()
+        .replace(" ", "")
+        .replace("_", "")
+        .replace("-", "")
+        .replace("ó", "o")
+        .replace("í", "i")
+        .replace("á", "a")
+        .replace("é", "e")
+        .replace("ú", "u")
+    )
+
+    equivalencias = {
+        "contaplus": "ContaPlus",
+        "conta+": "ContaPlus",
+        "econtabilidad": "eContabilidad",
+        "efacturacionelectronica": "eFacturacionElectronica",
+        "efacturacion": "eFacturacionElectronica",
+        "eremuneraciones": "eRemuneraciones",
+        "eremuneracion": "eRemuneraciones",
+        "erenta": "eRenta",
+    }
+
+    return equivalencias.get(
+        compacto,
+        pd.NA,
+    )
 
 
 def clasificar_entorno(valor_entorno, texto_auxiliar=""):
@@ -384,10 +456,13 @@ def normalizar_datos(df):
             "Tiempo de resolución completa - Horas trabajo (h)": (
                 "tiempo_resolucion_horas"
             ),
-            "Etiqueta 1": "etiqueta_programa",
+            "Etiqueta 1": "etiqueta_producto",
             "Etiqueta 2": "etiqueta_entorno",
-            "E1": "etiqueta_programa",
+            "E1": "etiqueta_producto",
             "E2": "etiqueta_entorno",
+            "Producto": "producto_excel",
+            "PRODUCTO": "producto_excel",
+            "producto": "producto_excel",
         }
 
         columnas_disponibles = {
@@ -463,19 +538,31 @@ def normalizar_datos(df):
         .str.strip()
     )
 
-    # Clasificación definitiva del modelo_v1.xlsx.
-    if "etiqueta_programa" not in df.columns:
-        df["etiqueta_programa"] = pd.NA
+    # Producto: usar directamente la columna Producto del Excel.
+    if "producto_excel" not in df.columns:
+        df["producto_excel"] = pd.NA
+
+    if "etiqueta_producto" not in df.columns:
+        df["etiqueta_producto"] = pd.NA
 
     if "etiqueta_entorno" not in df.columns:
         df["etiqueta_entorno"] = pd.NA
 
-    df["categoria"] = df.apply(
-        lambda fila: clasificar_ticket(
-            fila.get("asunto"),
-            fila.get("etiqueta_programa"),
-        ),
-        axis=1,
+    df["categoria"] = df["producto_excel"].apply(
+        normalizar_producto_excel
+    )
+
+    # Si el archivo antiguo no contiene Producto, usar E1 como respaldo.
+    mascara_sin_producto = df["categoria"].isna()
+
+    df.loc[
+        mascara_sin_producto,
+        "categoria",
+    ] = df.loc[
+        mascara_sin_producto,
+        "etiqueta_producto",
+    ].apply(
+        normalizar_producto_excel
     )
 
     df["entorno"] = df.apply(
@@ -484,7 +571,7 @@ def normalizar_datos(df):
             " ".join(
                 [
                     limpiar_texto(fila.get("asunto")),
-                    limpiar_texto(fila.get("etiqueta_programa")),
+                    limpiar_texto(fila.get("etiqueta_producto")),
                 ]
             ),
         ),
@@ -541,6 +628,14 @@ def normalizar_datos(df):
     # Excluir David y Neil antes de filtros, gráficos y PDF.
     df = df[
         ~df["tecnico"].apply(tecnico_excluido)
+    ].copy()
+
+    # Mantener únicamente los productos permitidos.
+    # Así se elimina completamente la categoría "Otros".
+    df = df[
+        df["categoria"].isin(
+            CATEGORIAS_VISIBLES
+        )
     ].copy()
 
     return df
@@ -825,9 +920,9 @@ def calcular_indice_desempeno(df, resumen_productividad):
     Índice simple y transparente de 1 a 7.
 
     Componentes:
-    - 40% volumen de tickets cerrados
-    - 25% rapidez de resolución
-    - 20% rapidez del primer ticket
+    - 35% volumen de tickets cerrados
+    - 30% rapidez de resolución
+    - 15% rapidez del primer ticket
     - 15% regularidad diaria
     """
     if resumen_productividad.empty:
@@ -930,16 +1025,26 @@ def calcular_indice_desempeno(df, resumen_productividad):
         base["rango_diario"]
     )
 
+    # Pesos solicitados:
+    # - 35% volumen de tickets
+    # - 30% rapidez de resolución
+    # - 15% rapidez del primer ticket
+    # - 15% regularidad diaria
+    #
+    # Los pesos suman 95%. Se dividen por 0.95 para conservar
+    # una escala completa de 0 a 1 antes de convertirla a nota 1 a 7.
+    peso_total = 0.95
+
     base["indice_0_1"] = (
-        base["score_volumen"] * 0.40
-        + base["score_rapidez"] * 0.25
-        + base["score_primer_ticket"] * 0.20
+        base["score_volumen"] * 0.35
+        + base["score_rapidez"] * 0.30
+        + base["score_primer_ticket"] * 0.15
         + base["score_regularidad"] * 0.15
-    )
+    ) / peso_total
 
     # Convertir de 0..1 a escala 1..7.
     base["Nota desempeño"] = (
-        1 + base["indice_0_1"] * 6
+        1 + base["indice_0_1"].clip(0, 1) * 6
     ).round(2)
 
     return base
@@ -998,37 +1103,33 @@ def grafico_tickets_tecnico(datos):
 
 def grafico_categorias(datos):
     """
-    Muestra los cuatro programas divididos por entorno:
-    Nube y Escritorio.
+    Muestra la cantidad total de tickets por producto.
     """
     if datos.empty:
         return None
 
     figura = px.bar(
         datos,
-        x="Categoría",
+        x="Producto",
         y="Cantidad",
-        color="Entorno",
-        barmode="group",
         text="Cantidad",
-        title="Tickets por categoría y entorno",
+        title="Tickets por producto",
         category_orders={
-            "Categoría": CATEGORIAS_VISIBLES,
-            "Entorno": ENTORNOS_VISIBLES,
+            "Producto": CATEGORIAS_VISIBLES,
         },
+        color_discrete_sequence=["#4C78A8"],
     )
 
     figura.update_traces(
-        width=0.32,
+        width=0.42,
         textposition="outside",
     )
 
     figura.update_layout(
-        bargap=0.35,
-        bargroupgap=0.12,
-        xaxis_title="Programa",
+        showlegend=False,
+        bargap=0.38,
+        xaxis_title="Producto",
         yaxis_title="Cantidad",
-        legend_title="Entorno",
     )
 
     return figura
@@ -1445,7 +1546,7 @@ def generar_pdf_informe(
     elementos.append(
         Paragraph(
             "Dashboard de productividad, tiempos de respuesta, "
-            "programas, entornos y cumplimiento operativo.",
+            "productos, entornos y cumplimiento operativo.",
             estilo_portada_subtitulo,
         )
     )
@@ -1507,8 +1608,8 @@ def generar_pdf_informe(
         "1. Resumen general e indicadores principales",
         "2. Visualizaciones principales",
         "3. Productividad del primer ticket diario",
-        "4. Distribución de programas por técnico",
-        "5. Analítica avanzada y cumplimiento SLA",
+        "4. Distribución de productos por técnico",
+        "5. Tiempo de resolución por producto",
         "6. Productividad diaria y evolución semanal",
         "7. Índice de desempeño",
         "8. Resumen ejecutivo",
@@ -1709,50 +1810,33 @@ def generar_pdf_informe(
         )
     )
 
-    # Tickets por categoría y entorno
-    for entorno_pdf in ENTORNOS_VISIBLES:
-        datos_entorno_pdf = (
-            df[
-                (df["entorno"] == entorno_pdf)
-                & df["categoria"].isin(CATEGORIAS_VISIBLES)
-            ]["categoria"]
-            .value_counts()
-            .reindex(
-                CATEGORIAS_VISIBLES,
-                fill_value=0,
+    # Tickets por producto
+    por_producto_pdf = (
+        df[
+            df["categoria"].isin(
+                CATEGORIAS_VISIBLES
             )
-            .rename_axis("Categoría")
-            .reset_index(name="Cantidad")
-        )
-
-        elementos.append(
-            crear_grafico_barras_pdf(
-                titulo=f"Tickets por programa - {entorno_pdf}",
-                etiquetas=datos_entorno_pdf["Categoría"].tolist(),
-                valores=datos_entorno_pdf["Cantidad"].tolist(),
-                destacar="ninguno",
-                nota=(
-                    "Programas: Contabilidad, Remuneraciones, "
-                    "Renta y Facturación."
-                ),
-            )
-        )
-
-    # Tickets por estado
-    por_estado_pdf = (
-        df["estado"]
+        ]["categoria"]
         .value_counts()
-        .rename_axis("Estado")
+        .reindex(
+            CATEGORIAS_VISIBLES,
+            fill_value=0,
+        )
+        .rename_axis("Producto")
         .reset_index(name="Cantidad")
     )
 
     elementos.append(
         crear_grafico_barras_pdf(
-            titulo="Tickets por estado",
-            etiquetas=por_estado_pdf["Estado"].tolist(),
-            valores=por_estado_pdf["Cantidad"].tolist(),
+            titulo="Tickets por producto",
+            etiquetas=por_producto_pdf["Producto"].tolist(),
+            valores=por_producto_pdf["Cantidad"].tolist(),
             destacar="ninguno",
-            nota="Distribución de tickets por estado.",
+            nota=(
+                "Productos: ContaPlus, eContabilidad, "
+                "eFacturacionElectronica, eRemuneraciones, "
+                "eRenta y Otros."
+            ),
         )
     )
 
@@ -1957,12 +2041,13 @@ def generar_pdf_informe(
             CATEGORIAS_VISIBLES
         ].idxmax(axis=1)
 
-        columnas_programas_pdf = [
+        columnas_productos_pdf = [
             "Técnico",
-            "Contabilidad",
-            "Remuneraciones",
-            "Renta",
-            "Facturación",
+            "ContaPlus",
+            "eContabilidad",
+            "eFacturacionElectronica",
+            "eRemuneraciones",
+            "eRenta",
             "Total",
             "Especialidad principal",
         ]
@@ -1976,20 +2061,20 @@ def generar_pdf_informe(
             )
         )
 
-        datos_programas_pdf = [
-            columnas_programas_pdf
+        datos_productos_pdf = [
+            columnas_productos_pdf
         ]
 
         for _, fila in tabla_distribucion_pdf.iterrows():
-            datos_programas_pdf.append(
+            datos_productos_pdf.append(
                 [
                     str(fila[columna])
-                    for columna in columnas_programas_pdf
+                    for columna in columnas_productos_pdf
                 ]
             )
 
-        tabla_programas_pdf = Table(
-            datos_programas_pdf,
+        tabla_productos_pdf = Table(
+            datos_productos_pdf,
             colWidths=[
                 4.0 * cm,
                 2.6 * cm,
@@ -2002,7 +2087,7 @@ def generar_pdf_informe(
             repeatRows=1,
         )
 
-        tabla_programas_pdf.setStyle(
+        tabla_productos_pdf.setStyle(
             TableStyle(
                 [
                     (
@@ -2035,13 +2120,13 @@ def generar_pdf_informe(
         )
 
         elementos.append(
-            tabla_programas_pdf
+            tabla_productos_pdf
         )
 
         elementos.append(
             Paragraph(
                 "La columna Especialidad principal corresponde "
-                "al programa en el que cada técnico atendió "
+                "al producto en el que cada técnico atendió "
                 "la mayor cantidad de tickets.",
                 estilos["BodyText"],
             )
@@ -2059,120 +2144,148 @@ def generar_pdf_informe(
     )
 
     # =====================================================
-    # SLA / TIEMPOS DE RESOLUCIÓN
+    # TIEMPO DE RESOLUCIÓN POR PRODUCTO
     # =====================================================
-    sla_pdf = df.copy()
-
-    sla_pdf["Tramo SLA"] = (
-        pd.to_numeric(
-            sla_pdf["tiempo_resolucion_horas"],
-            errors="coerce",
-        )
-        .apply(
-            clasificar_sla_horas
-        )
-    )
-
-    orden_sla_pdf = [
-        "Menos de 1 h",
-        "1 a 4 h",
-        "4 a 8 h",
-        "Más de 8 h",
-    ]
-
-    resumen_sla_pdf = (
-        sla_pdf[
-            sla_pdf["Tramo SLA"].isin(
-                orden_sla_pdf
-            )
-        ]["Tramo SLA"]
-        .value_counts()
-        .reindex(
-            orden_sla_pdf,
-            fill_value=0,
-        )
-        .rename_axis("Tramo")
-        .reset_index(
-            name="Cantidad"
-        )
-    )
-
-    total_sla_pdf = int(
-        resumen_sla_pdf["Cantidad"].sum()
-    )
-
-    if total_sla_pdf > 0:
-        resumen_sla_pdf["Porcentaje"] = (
-            resumen_sla_pdf["Cantidad"]
-            / total_sla_pdf
-            * 100
-        ).round(1)
-    else:
-        resumen_sla_pdf["Porcentaje"] = 0.0
-
     elementos.append(
         Paragraph(
-            "Distribución de tiempos de resolución",
-            estilos["Heading3"],
+            "Tiempo de resolución por producto",
+            estilo_subseccion,
         )
     )
 
-    datos_sla_pdf = [
-        [
-            "Tramo",
-            "Cantidad",
-            "Porcentaje",
+    resolucion_producto_pdf = (
+        df[
+            df["categoria"].isin(
+                CATEGORIAS_VISIBLES
+            )
         ]
-    ]
-
-    for _, fila in resumen_sla_pdf.iterrows():
-        datos_sla_pdf.append(
-            [
-                str(fila["Tramo"]),
-                str(int(fila["Cantidad"])),
-                f"{float(fila['Porcentaje']):.1f}%",
-            ]
+        .assign(
+            tiempo_horas=lambda datos: pd.to_numeric(
+                datos["tiempo_resolucion_horas"],
+                errors="coerce",
+            )
         )
-
-    tabla_sla_pdf = Table(
-        datos_sla_pdf,
-        colWidths=[
-            6 * cm,
-            3 * cm,
-            3 * cm,
-        ],
-        repeatRows=1,
-    )
-
-    tabla_sla_pdf.setStyle(
-        TableStyle(
-            [
-                (
-                    "BACKGROUND",
-                    (0, 0),
-                    (-1, 0),
-                    colors.lightgrey,
-                ),
-                (
-                    "FONTNAME",
-                    (0, 0),
-                    (-1, 0),
-                    "Helvetica-Bold",
-                ),
-                (
-                    "GRID",
-                    (0, 0),
-                    (-1, -1),
-                    0.4,
-                    colors.grey,
-                ),
-            ]
+        .dropna(
+            subset=["tiempo_horas"]
         )
     )
 
-    elementos.append(
-        tabla_sla_pdf
-    )
+    if not resolucion_producto_pdf.empty:
+        resumen_producto_pdf = (
+            resolucion_producto_pdf
+            .groupby(
+                "categoria",
+                as_index=False,
+            )
+            .agg(
+                Tickets=("id", "count"),
+                Promedio_horas=("tiempo_horas", "mean"),
+                Mediana_horas=("tiempo_horas", "median"),
+                Maximo_horas=("tiempo_horas", "max"),
+            )
+            .rename(
+                columns={
+                    "categoria": "Producto",
+                    "Promedio_horas": "Promedio (h)",
+                    "Mediana_horas": "Mediana (h)",
+                    "Maximo_horas": "Máximo (h)",
+                }
+            )
+            .set_index("Producto")
+            .reindex(
+                CATEGORIAS_VISIBLES
+            )
+            .fillna(0)
+            .reset_index()
+        )
+
+        elementos.append(
+            crear_grafico_barras_pdf(
+                titulo="Tiempo promedio de resolución por producto",
+                etiquetas=resumen_producto_pdf["Producto"].tolist(),
+                valores=resumen_producto_pdf["Promedio (h)"].tolist(),
+                destacar="mayor",
+                nota=(
+                    "La barra roja identifica el producto con "
+                    "mayor tiempo promedio de resolución."
+                ),
+            )
+        )
+
+        datos_resolucion_pdf = [
+            [
+                "Producto",
+                "Tickets",
+                "Promedio (h)",
+                "Mediana (h)",
+                "Máximo (h)",
+            ]
+        ]
+
+        for _, fila in resumen_producto_pdf.iterrows():
+            datos_resolucion_pdf.append(
+                [
+                    str(fila["Producto"]),
+                    str(int(fila["Tickets"])),
+                    f"{float(fila['Promedio (h)']):.2f}",
+                    f"{float(fila['Mediana (h)']):.2f}",
+                    f"{float(fila['Máximo (h)']):.2f}",
+                ]
+            )
+
+        tabla_resolucion_pdf = Table(
+            datos_resolucion_pdf,
+            colWidths=[
+                5.2 * cm,
+                2.3 * cm,
+                3.0 * cm,
+                3.0 * cm,
+                3.0 * cm,
+            ],
+            repeatRows=1,
+        )
+
+        tabla_resolucion_pdf.setStyle(
+            TableStyle(
+                [
+                    (
+                        "BACKGROUND",
+                        (0, 0),
+                        (-1, 0),
+                        COLOR_PRINCIPAL,
+                    ),
+                    (
+                        "TEXTCOLOR",
+                        (0, 0),
+                        (-1, 0),
+                        colors.white,
+                    ),
+                    (
+                        "FONTNAME",
+                        (0, 0),
+                        (-1, 0),
+                        "Helvetica-Bold",
+                    ),
+                    (
+                        "GRID",
+                        (0, 0),
+                        (-1, -1),
+                        0.4,
+                        colors.grey,
+                    ),
+                    (
+                        "ALIGN",
+                        (1, 1),
+                        (-1, -1),
+                        "CENTER",
+                    ),
+                ]
+            )
+        )
+
+        elementos.append(
+            tabla_resolucion_pdf
+        )
 
     # =====================================================
     # PRODUCTIVIDAD DIARIA REAL
@@ -2273,7 +2386,7 @@ def generar_pdf_informe(
     # =====================================================
     # MATRIZ TÉCNICO × PROGRAMA
     # =====================================================
-    distribucion_programa_pdf = (
+    distribucion_producto_pdf = (
         df[
             df["categoria"].isin(
                 CATEGORIAS_VISIBLES
@@ -2291,9 +2404,9 @@ def generar_pdf_informe(
         )
     )
 
-    if not distribucion_programa_pdf.empty:
-        matriz_programa_pdf = (
-            distribucion_programa_pdf
+    if not distribucion_producto_pdf.empty:
+        matriz_producto_pdf = (
+            distribucion_producto_pdf
             .pivot_table(
                 index="tecnico",
                 columns="categoria",
@@ -2308,17 +2421,17 @@ def generar_pdf_informe(
             .reset_index()
         )
 
-        matriz_programa_pdf["Total"] = (
-            matriz_programa_pdf[
+        matriz_producto_pdf["Total"] = (
+            matriz_producto_pdf[
                 CATEGORIAS_VISIBLES
             ].sum(
                 axis=1
             )
         )
 
-        matriz_programa_pdf[
+        matriz_producto_pdf[
             "Especialidad principal"
-        ] = matriz_programa_pdf[
+        ] = matriz_producto_pdf[
             CATEGORIAS_VISIBLES
         ].idxmax(
             axis=1
@@ -2333,23 +2446,24 @@ def generar_pdf_informe(
 
         elementos.append(
             Paragraph(
-                "Distribución técnico por programa",
+                "Distribución técnico por producto",
                 estilos["Heading3"],
             )
         )
 
-        columnas_programa_pdf = [
+        columnas_producto_pdf = [
             "Técnico",
-            "Contabilidad",
-            "Remuneraciones",
-            "Renta",
-            "Facturación",
+            "ContaPlus",
+            "eContabilidad",
+            "eFacturacionElectronica",
+            "eRemuneraciones",
+            "eRenta",
             "Total",
             "Especialidad principal",
         ]
 
-        matriz_programa_pdf = (
-            matriz_programa_pdf
+        matriz_producto_pdf = (
+            matriz_producto_pdf
             .rename(
                 columns={
                     "tecnico": "Técnico",
@@ -2357,20 +2471,20 @@ def generar_pdf_informe(
             )
         )
 
-        datos_programa_pdf = [
-            columnas_programa_pdf
+        datos_producto_pdf = [
+            columnas_producto_pdf
         ]
 
-        for _, fila in matriz_programa_pdf.iterrows():
-            datos_programa_pdf.append(
+        for _, fila in matriz_producto_pdf.iterrows():
+            datos_producto_pdf.append(
                 [
                     str(fila[columna])
-                    for columna in columnas_programa_pdf
+                    for columna in columnas_producto_pdf
                 ]
             )
 
-        tabla_programa_pdf = Table(
-            datos_programa_pdf,
+        tabla_producto_pdf = Table(
+            datos_producto_pdf,
             colWidths=[
                 4.0 * cm,
                 2.6 * cm,
@@ -2383,7 +2497,7 @@ def generar_pdf_informe(
             repeatRows=1,
         )
 
-        tabla_programa_pdf.setStyle(
+        tabla_producto_pdf.setStyle(
             TableStyle(
                 [
                     (
@@ -2410,174 +2524,7 @@ def generar_pdf_informe(
         )
 
         elementos.append(
-            tabla_programa_pdf
-        )
-
-    # =====================================================
-    # NUBE VS ESCRITORIO POR TÉCNICO
-    # =====================================================
-    entorno_pdf = (
-        df[
-            df["entorno"].isin(
-                ENTORNOS_VISIBLES
-            )
-        ]
-        .groupby(
-            [
-                "tecnico",
-                "entorno",
-            ]
-        )
-        .size()
-        .reset_index(
-            name="Cantidad"
-        )
-    )
-
-    if not entorno_pdf.empty:
-        tabla_entorno_pdf = (
-            entorno_pdf
-            .pivot_table(
-                index="tecnico",
-                columns="entorno",
-                values="Cantidad",
-                aggfunc="sum",
-                fill_value=0,
-            )
-            .reindex(
-                columns=ENTORNOS_VISIBLES,
-                fill_value=0,
-            )
-            .reset_index()
-        )
-
-        tabla_entorno_pdf["Total"] = (
-            tabla_entorno_pdf[
-                ENTORNOS_VISIBLES
-            ].sum(
-                axis=1
-            )
-        )
-
-        for entorno_nombre in ENTORNOS_VISIBLES:
-            tabla_entorno_pdf[
-                f"% {entorno_nombre}"
-            ] = (
-                tabla_entorno_pdf[
-                    entorno_nombre
-                ]
-                / tabla_entorno_pdf[
-                    "Total"
-                ].replace(
-                    0,
-                    pd.NA,
-                )
-                * 100
-            ).round(
-                1
-            )
-
-        elementos.append(
-            Spacer(
-                1,
-                0.35 * cm,
-            )
-        )
-
-        elementos.append(
-            Paragraph(
-                "Nube vs Escritorio por técnico",
-                estilos["Heading3"],
-            )
-        )
-
-        columnas_entorno_pdf = [
-            "Técnico",
-            "Nube",
-            "% Nube",
-            "Escritorio",
-            "% Escritorio",
-            "Total",
-        ]
-
-        tabla_entorno_pdf = (
-            tabla_entorno_pdf
-            .rename(
-                columns={
-                    "tecnico": "Técnico",
-                }
-            )
-        )
-
-        datos_entorno_pdf = [
-            columnas_entorno_pdf
-        ]
-
-        for _, fila in tabla_entorno_pdf.iterrows():
-            datos_entorno_pdf.append(
-                [
-                    str(fila["Técnico"]),
-                    str(int(fila["Nube"])),
-                    (
-                        ""
-                        if pd.isna(
-                            fila["% Nube"]
-                        )
-                        else f"{float(fila['% Nube']):.1f}%"
-                    ),
-                    str(int(fila["Escritorio"])),
-                    (
-                        ""
-                        if pd.isna(
-                            fila["% Escritorio"]
-                        )
-                        else f"{float(fila['% Escritorio']):.1f}%"
-                    ),
-                    str(int(fila["Total"])),
-                ]
-            )
-
-        tabla_entorno_pdf_obj = Table(
-            datos_entorno_pdf,
-            colWidths=[
-                4.5 * cm,
-                2.0 * cm,
-                2.2 * cm,
-                2.5 * cm,
-                2.5 * cm,
-                2.0 * cm,
-            ],
-            repeatRows=1,
-        )
-
-        tabla_entorno_pdf_obj.setStyle(
-            TableStyle(
-                [
-                    (
-                        "BACKGROUND",
-                        (0, 0),
-                        (-1, 0),
-                        colors.lightgrey,
-                    ),
-                    (
-                        "FONTNAME",
-                        (0, 0),
-                        (-1, 0),
-                        "Helvetica-Bold",
-                    ),
-                    (
-                        "GRID",
-                        (0, 0),
-                        (-1, -1),
-                        0.4,
-                        colors.grey,
-                    ),
-                ]
-            )
-        )
-
-        elementos.append(
-            tabla_entorno_pdf_obj
+            tabla_producto_pdf
         )
 
     # =====================================================
@@ -3006,7 +2953,7 @@ def generar_pdf_informe(
         )
 
         mensajes_pdf.append(
-            f"El programa con mayor volumen fue "
+            f"El producto con mayor volumen fue "
             f"{categoria_top_pdf}."
         )
 
@@ -3270,9 +3217,15 @@ tecnicos_disponibles = sorted(
     .tolist()
 )
 
-tecnico_seleccionado = st.sidebar.selectbox(
-    "Técnico",
-    ["Todos"] + tecnicos_disponibles,
+tecnicos_seleccionados = st.sidebar.multiselect(
+    "Comparar técnicos",
+    options=tecnicos_disponibles,
+    default=[],
+    placeholder="Selecciona uno o más técnicos",
+    help=(
+        "Deja el campo vacío para visualizar a todos. "
+        "Selecciona dos o más técnicos para compararlos."
+    ),
 )
 
 estados_disponibles = sorted(
@@ -3289,14 +3242,10 @@ estado_seleccionado = st.sidebar.selectbox(
 )
 
 categoria_seleccionada = st.sidebar.selectbox(
-    "Categoría",
-    ["Todas"] + CATEGORIAS_VISIBLES,
+    "Producto",
+    ["Todos"] + CATEGORIAS_VISIBLES,
 )
 
-entorno_seleccionado = st.sidebar.selectbox(
-    "Entorno",
-    ["Todos"] + ENTORNOS_VISIBLES,
-)
 
 st.sidebar.subheader(
     "📅 Rango de fechas"
@@ -3330,10 +3279,11 @@ else:
 
 tickets_filtrados = tickets.copy()
 
-if tecnico_seleccionado != "Todos":
+if tecnicos_seleccionados:
     tickets_filtrados = tickets_filtrados[
-        tickets_filtrados["tecnico"]
-        == tecnico_seleccionado
+        tickets_filtrados["tecnico"].isin(
+            tecnicos_seleccionados
+        )
     ]
 
 if estado_seleccionado != "Todos":
@@ -3342,17 +3292,12 @@ if estado_seleccionado != "Todos":
         == estado_seleccionado
     ]
 
-if categoria_seleccionada != "Todas":
+if categoria_seleccionada != "Todos":
     tickets_filtrados = tickets_filtrados[
         tickets_filtrados["categoria"]
         == categoria_seleccionada
     ]
 
-if entorno_seleccionado != "Todos":
-    tickets_filtrados = tickets_filtrados[
-        tickets_filtrados["entorno"]
-        == entorno_seleccionado
-    ]
 
 if (
     isinstance(rango_fechas, (list, tuple))
@@ -3597,38 +3542,19 @@ with col_grafico1:
         )
 
 with col_grafico2:
-    # Crear todas las combinaciones:
-    # Programa x Nube/Escritorio.
-    indice_completo = pd.MultiIndex.from_product(
-        [
-            CATEGORIAS_VISIBLES,
-            ENTORNOS_VISIBLES,
-        ],
-        names=[
-            "Categoría",
-            "Entorno",
-        ],
-    )
-
     por_categoria = (
         tickets_filtrados[
             tickets_filtrados["categoria"].isin(
                 CATEGORIAS_VISIBLES
             )
-        ]
-        .groupby(
-            [
-                "categoria",
-                "entorno",
-            ]
-        )
-        .size()
+        ]["categoria"]
+        .value_counts()
         .reindex(
-            indice_completo,
+            CATEGORIAS_VISIBLES,
             fill_value=0,
         )
-        .rename("Cantidad")
-        .reset_index()
+        .rename_axis("Producto")
+        .reset_index(name="Cantidad")
     )
 
     figura_categoria = grafico_categorias(
@@ -3642,8 +3568,9 @@ with col_grafico2:
         )
 
     st.caption(
-        "Contabilidad, Remuneraciones, Renta y Facturación "
-        "se muestran separados entre Nube y Escritorio."
+        "El gráfico muestra la cantidad de tickets de ContaPlus, "
+        "eContabilidad, eFacturacionElectronica, eRemuneraciones, "
+        "eRenta y Otros."
     )
 
 # =========================================================
@@ -3681,7 +3608,7 @@ if not tickets_tecnico_categoria.empty:
         barmode="group",
         text="Cantidad",
         title=(
-            "Distribución de programas "
+            "Distribución de productos "
             "atendidos por técnico"
         ),
         category_orders={
@@ -3689,7 +3616,7 @@ if not tickets_tecnico_categoria.empty:
         },
         labels={
             "tecnico": "Técnico",
-            "categoria": "Programa",
+            "categoria": "Producto",
         },
     )
 
@@ -3703,7 +3630,7 @@ if not tickets_tecnico_categoria.empty:
         bargroupgap=0.08,
         xaxis_title="Técnico",
         yaxis_title="Cantidad de tickets",
-        legend_title="Programa",
+        legend_title="Producto",
     )
 
     st.plotly_chart(
@@ -3717,7 +3644,7 @@ if not tickets_tecnico_categoria.empty:
         "Renta y Facturación."
     )
 
-    # Tabla resumen por técnico y programa.
+    # Tabla resumen por técnico y producto.
     tabla_tecnico_categoria = (
         tickets_tecnico_categoria
         .pivot_table(
@@ -3776,24 +3703,6 @@ else:
 st.divider()
 
 
-por_estado = (
-    tickets_filtrados["estado"]
-    .value_counts()
-    .rename_axis("Estado")
-    .reset_index(name="Cantidad")
-)
-
-figura_estado = grafico_estados(
-    por_estado
-)
-
-if figura_estado is not None:
-    st.plotly_chart(
-        figura_estado,
-        use_container_width=True,
-    )
-
-st.divider()
 
 
 # =========================================================
@@ -3847,95 +3756,116 @@ st.divider()
 
 
 # =========================================================
-# SLA / TIEMPOS DE RESOLUCIÓN
+# TIEMPO DE RESOLUCIÓN POR PRODUCTO
 # =========================================================
 
 st.subheader(
-    "⏱️ Distribución de tiempos de resolución"
+    "⏱️ Tiempo de resolución por producto"
 )
 
-sla_datos = tickets_filtrados.copy()
-
-sla_datos["Tramo SLA"] = (
-    pd.to_numeric(
-        sla_datos["tiempo_resolucion_horas"],
-        errors="coerce",
-    )
-    .apply(
-        clasificar_sla_horas
-    )
-)
-
-orden_sla = [
-    "Menos de 1 h",
-    "1 a 4 h",
-    "4 a 8 h",
-    "Más de 8 h",
-]
-
-sla_resumen = (
-    sla_datos[
-        sla_datos["Tramo SLA"].isin(
-            orden_sla
+resolucion_producto = (
+    tickets_filtrados[
+        tickets_filtrados["categoria"].isin(
+            CATEGORIAS_VISIBLES
         )
-    ]["Tramo SLA"]
-    .value_counts()
-    .reindex(
-        orden_sla,
-        fill_value=0,
+    ]
+    .assign(
+        tiempo_horas=lambda datos: pd.to_numeric(
+            datos["tiempo_resolucion_horas"],
+            errors="coerce",
+        )
     )
-    .rename_axis("Tramo")
-    .reset_index(name="Cantidad")
+    .dropna(
+        subset=["tiempo_horas"]
+    )
 )
 
-total_sla = int(
-    sla_resumen["Cantidad"].sum()
-)
+if not resolucion_producto.empty:
+    resumen_resolucion_producto = (
+        resolucion_producto
+        .groupby(
+            "categoria",
+            as_index=False,
+        )
+        .agg(
+            Tickets=("id", "count"),
+            Promedio_horas=("tiempo_horas", "mean"),
+            Mediana_horas=("tiempo_horas", "median"),
+            Maximo_horas=("tiempo_horas", "max"),
+        )
+        .rename(
+            columns={
+                "categoria": "Producto",
+                "Promedio_horas": "Promedio (h)",
+                "Mediana_horas": "Mediana (h)",
+                "Maximo_horas": "Máximo (h)",
+            }
+        )
+        .set_index("Producto")
+        .reindex(
+            CATEGORIAS_VISIBLES
+        )
+        .fillna(0)
+        .reset_index()
+    )
 
-if total_sla > 0:
-    sla_resumen["Porcentaje"] = (
-        sla_resumen["Cantidad"]
-        / total_sla
-        * 100
-    ).round(1)
+    for columna in [
+        "Promedio (h)",
+        "Mediana (h)",
+        "Máximo (h)",
+    ]:
+        resumen_resolucion_producto[columna] = (
+            resumen_resolucion_producto[columna]
+            .round(2)
+        )
+
+    figura_resolucion_producto = px.bar(
+        resumen_resolucion_producto,
+        x="Producto",
+        y="Promedio (h)",
+        text="Promedio (h)",
+        title="Tiempo promedio de resolución por producto",
+        category_orders={
+            "Producto": CATEGORIAS_VISIBLES,
+        },
+        color_discrete_sequence=["#4C78A8"],
+    )
+
+    figura_resolucion_producto.update_traces(
+        width=0.42,
+        texttemplate="%{text:.2f} h",
+        textposition="outside",
+    )
+
+    figura_resolucion_producto.update_layout(
+        showlegend=False,
+        bargap=0.38,
+        xaxis_title="Producto",
+        yaxis_title="Horas promedio",
+    )
+
+    st.plotly_chart(
+        figura_resolucion_producto,
+        use_container_width=True,
+    )
+
+    st.dataframe(
+        resumen_resolucion_producto,
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    st.caption(
+        "El promedio y la mediana permiten comparar cuánto demora "
+        "la resolución de tickets en cada producto."
+    )
+
 else:
-    sla_resumen["Porcentaje"] = 0.0
+    resumen_resolucion_producto = pd.DataFrame()
 
-figura_sla = px.bar(
-    sla_resumen,
-    x="Tramo",
-    y="Cantidad",
-    text="Porcentaje",
-    title="Tickets por tramo de tiempo de resolución",
-)
-
-figura_sla.update_traces(
-    width=0.45,
-    texttemplate="%{text:.1f}%",
-    textposition="outside",
-)
-
-figura_sla.update_layout(
-    bargap=0.35,
-    xaxis_title="Tiempo de resolución",
-    yaxis_title="Cantidad de tickets",
-)
-
-st.plotly_chart(
-    figura_sla,
-    use_container_width=True,
-)
-
-st.dataframe(
-    sla_resumen,
-    use_container_width=True,
-    hide_index=True,
-)
-
-st.caption(
-    "Este indicador permite ver qué porcentaje de tickets se resuelve "
-    "en menos de 1 hora, entre 1 y 4 horas, entre 4 y 8 horas o en más de 8 horas."
-)
+    st.info(
+        "No hay tiempos de resolución válidos para comparar por producto."
+    )
 
 st.divider()
 
@@ -4018,7 +3948,7 @@ st.divider()
 # =========================================================
 
 st.subheader(
-    "🔥 Mapa de calor técnico por programa"
+    "🔥 Mapa de calor técnico por producto"
 )
 
 heatmap_base = (
@@ -4060,11 +3990,11 @@ if not heatmap_base.empty:
         text_auto=True,
         aspect="auto",
         labels={
-            "x": "Programa",
+            "x": "Producto",
             "y": "Técnico",
             "color": "Tickets",
         },
-        title="Intensidad de atención por técnico y programa",
+        title="Intensidad de atención por técnico y producto",
     )
 
     st.plotly_chart(
@@ -4073,90 +4003,12 @@ if not heatmap_base.empty:
     )
 
     st.caption(
-        "Los valores más altos indican en qué programas concentra más atención cada técnico."
+        "Los valores más altos indican en qué productos concentra más atención cada técnico."
     )
 
 else:
     st.info(
         "No hay datos para construir el mapa de calor."
-    )
-
-st.divider()
-
-
-# =========================================================
-# NUBE VS ESCRITORIO POR TÉCNICO
-# =========================================================
-
-st.subheader(
-    "☁️🖥️ Nube vs Escritorio por técnico"
-)
-
-entorno_tecnico = (
-    tickets_filtrados[
-        tickets_filtrados["entorno"].isin(
-            ENTORNOS_VISIBLES
-        )
-    ]
-    .groupby(
-        [
-            "tecnico",
-            "entorno",
-        ]
-    )
-    .size()
-    .reset_index(
-        name="Cantidad"
-    )
-)
-
-if not entorno_tecnico.empty:
-    totales_entorno = (
-        entorno_tecnico
-        .groupby(
-            "tecnico"
-        )["Cantidad"]
-        .transform("sum")
-    )
-
-    entorno_tecnico["Porcentaje"] = (
-        entorno_tecnico["Cantidad"]
-        / totales_entorno
-        * 100
-    ).round(1)
-
-    figura_entorno_tecnico = px.bar(
-        entorno_tecnico,
-        x="tecnico",
-        y="Porcentaje",
-        color="entorno",
-        barmode="stack",
-        text="Porcentaje",
-        title="Distribución porcentual de Nube y Escritorio por técnico",
-        labels={
-            "tecnico": "Técnico",
-            "entorno": "Entorno",
-        },
-    )
-
-    figura_entorno_tecnico.update_traces(
-        texttemplate="%{text:.1f}%",
-        textposition="inside",
-    )
-
-    figura_entorno_tecnico.update_layout(
-        yaxis_title="Porcentaje",
-        legend_title="Entorno",
-    )
-
-    st.plotly_chart(
-        figura_entorno_tecnico,
-        use_container_width=True,
-    )
-
-else:
-    st.info(
-        "No hay datos de entorno para mostrar."
     )
 
 st.divider()
@@ -4409,7 +4261,7 @@ if not tickets_tecnico_categoria.empty:
     )
 
     mensajes_resumen.append(
-        f"El programa con mayor volumen fue {categoria_top}."
+        f"El producto con mayor volumen fue {categoria_top}."
     )
 
 if "entorno" in tickets_filtrados.columns:
@@ -4679,12 +4531,13 @@ if REPORTLAB_DISPONIBLE:
         cerrados=cerrados,
         pendientes=pendientes,
         promedio_texto=promedio_texto,
-        tecnico_filtro=tecnico_seleccionado,
-        estado_filtro=estado_seleccionado,
-        categoria_filtro=(
-            f"{categoria_seleccionada} | "
-            f"Entorno: {entorno_seleccionado}"
+        tecnico_filtro=(
+            ", ".join(tecnicos_seleccionados)
+            if tecnicos_seleccionados
+            else "Todos"
         ),
+        estado_filtro=estado_seleccionado,
+        categoria_filtro=categoria_seleccionada,
         rango_fechas=rango_fechas,
         tabla_productividad=tabla_productividad,
     )
