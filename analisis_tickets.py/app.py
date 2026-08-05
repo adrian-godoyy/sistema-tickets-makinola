@@ -3285,7 +3285,7 @@ st.sidebar.divider()
 st.sidebar.subheader("📅 Análisis histórico")
 
 usar_historial = st.sidebar.checkbox(
-    "Usar datos guardados en Supabase",
+    "Consultar historial",
     value=False,
 )
 
