@@ -3332,9 +3332,12 @@ if usar_historial:
             tickets = historial.copy()
         else:
             mes_elegido = pd.Period(
-                mes_seleccionado,
-                freq="M",
-            )
+    pd.to_datetime(
+        mes_seleccionado,
+        format="%m/%Y",
+    ),
+    freq="M",
+)
 
             tickets = historial[
                 historial["mes_periodo"] == mes_elegido
