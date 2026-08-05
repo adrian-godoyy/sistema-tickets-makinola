@@ -6,6 +6,13 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from supabase_utils import (
+    guardar_tickets,
+    cargar_historial,
+    contar_tickets_guardados,
+    probar_conexion,
+)
+
 try:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
