@@ -3241,6 +3241,36 @@ else:
 
 tickets = normalizar_datos(tickets)
 
+# =========================================================
+# GUARDAR EN HISTORIAL DE SUPABASE
+# =========================================================
+
+st.sidebar.divider()
+st.sidebar.subheader("💾 Historial")
+
+nombre_archivo_bd = (
+    archivo_subido.name
+    if archivo_subido is not None
+    else "archivo_predeterminado"
+)
+
+if st.sidebar.button(
+    "Guardar tickets en la base de datos",
+    use_container_width=True,
+):
+    with st.spinner(
+        "Guardando tickets en Supabase..."
+    ):
+        cantidad_guardada, mensaje_guardado = guardar_tickets(
+            tickets,
+            nombre_archivo_bd,
+        )
+
+    if cantidad_guardada > 0:
+        st.sidebar.success(mensaje_guardado)
+    else:
+        st.sidebar.warning(mensaje_guardado)
+
 # Segunda exclusión de seguridad para Neil.
 tickets = tickets[
     ~tickets["tecnico"].apply(tecnico_excluido)
