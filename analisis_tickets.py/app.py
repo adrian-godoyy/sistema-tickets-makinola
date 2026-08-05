@@ -13,6 +13,13 @@ from supabase_utils import (
     probar_conexion,
 )
 
+from supabase_utils import (
+    guardar_tickets,
+    cargar_historial,
+    contar_tickets_guardados,
+    probar_conexion,
+)
+
 try:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
@@ -3270,6 +3277,72 @@ if st.sidebar.button(
         st.sidebar.success(mensaje_guardado)
     else:
         st.sidebar.warning(mensaje_guardado)
+# =========================================================
+# ANÁLISIS HISTÓRICO DESDE SUPABASE
+# =========================================================
+
+st.sidebar.divider()
+st.sidebar.subheader("📅 Análisis histórico")
+
+usar_historial = st.sidebar.checkbox(
+    "Usar datos guardados en Supabase",
+    value=False,
+)
+
+if usar_historial:
+    with st.spinner("Cargando historial desde Supabase..."):
+        historial = cargar_historial()
+
+    if historial.empty:
+        st.sidebar.warning(
+            "No existen tickets guardados en la base de datos."
+        )
+    else:
+        historial = historial.copy()
+
+        historial["fecha_apertura"] = pd.to_datetime(
+            historial["fecha_apertura"],
+            errors="coerce",
+        )
+
+        historial = historial.dropna(
+            subset=["fecha_apertura"]
+        )
+
+        historial["mes_periodo"] = (
+            historial["fecha_apertura"]
+            .dt.to_period("M")
+        )
+
+        meses_disponibles = sorted(
+            historial["mes_periodo"].unique()
+        )
+
+        opciones_meses = ["Todos los meses"] + [
+            periodo.strftime("%m/%Y")
+            for periodo in meses_disponibles
+        ]
+
+        mes_seleccionado = st.sidebar.selectbox(
+            "Período a analizar",
+            opciones_meses,
+        )
+
+        if mes_seleccionado == "Todos los meses":
+            tickets = historial.copy()
+        else:
+            mes_elegido = pd.Period(
+                mes_seleccionado,
+                freq="M",
+            )
+
+            tickets = historial[
+                historial["mes_periodo"] == mes_elegido
+            ].copy()
+
+        st.sidebar.success(
+            f"{len(tickets):,} tickets cargados desde Supabase."
+        )
 
 # Segunda exclusión de seguridad para Neil.
 tickets = tickets[
