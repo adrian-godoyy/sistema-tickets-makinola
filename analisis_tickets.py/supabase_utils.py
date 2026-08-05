@@ -56,17 +56,13 @@ def _obtener_secreto(nombre: str) -> str:
 
 def obtener_cliente_supabase() -> Client:
     """
-    Crea un cliente de Supabase usando los Secrets de Streamlit.
-
-    No se utiliza caché para que los cambios realizados en los
-    Secrets sean reconocidos inmediatamente después de reiniciar
-    la aplicación.
+    Crea el cliente de Supabase para operaciones internas del servidor.
+    La clave secreta solo debe estar guardada en Streamlit Secrets.
     """
-
     url = _obtener_secreto("SUPABASE_URL")
-    key = _obtener_secreto("SUPABASE_KEY")
+    secret_key = _obtener_secreto("SUPABASE_SECRET_KEY")
 
-    return create_client(url, key)
+    return create_client(url, secret_key)
 
 
 def probar_conexion() -> tuple[bool, str]:
