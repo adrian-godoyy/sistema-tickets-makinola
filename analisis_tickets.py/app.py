@@ -49,13 +49,6 @@ st.set_page_config(
 # CONEXIÓN A SUPABASE
 # =====================================================
 
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-BASE_DIR = Path(__file__).resolve().parent
-LOGO = BASE_DIR / "makinola3000.png"
-
 CATEGORIAS_VISIBLES = [
     "ContaPlus",
     "eContabilidad",
