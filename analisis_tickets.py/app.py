@@ -2,8 +2,6 @@ from pathlib import Path
 from io import BytesIO
 from datetime import datetime
 
-from supabase import create_client
-
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -45,9 +43,9 @@ st.set_page_config(
     page_icon="🎫",
     layout="wide",
 )
-# =====================================================
-# CONEXIÓN A SUPABASE
-# =====================================================
+
+BASE_DIR = Path(__file__).resolve().parent
+LOGO = BASE_DIR / "makinola3000.png"
 
 CATEGORIAS_VISIBLES = [
     "ContaPlus",
