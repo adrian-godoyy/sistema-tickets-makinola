@@ -1,6 +1,7 @@
 from pathlib import Path
 from io import BytesIO
 from datetime import datetime
+import unicodedata
 
 import pandas as pd
 import plotly.express as px
@@ -9,13 +10,7 @@ import streamlit as st
 from supabase_utils import (
     guardar_tickets,
     cargar_historial,
-    contar_tickets_guardados,
-    probar_conexion,
-)
-
-from supabase_utils import (
-    guardar_tickets,
-    cargar_historial,
+    cargar_ultima_carga,
     contar_tickets_guardados,
     probar_conexion,
 )
@@ -82,6 +77,17 @@ TECNICOS_EXCLUIDOS = [
     "neil torres",
 ]
 
+# Estas personas suman en los totales, productos, tiempos y estados,
+# pero no aparecen como técnicos en gráficos, rankings, productividad
+# ni índice de desempeño.
+TECNICOS_OCULTOS = [
+    "david",
+    "ximena perez",
+    "giovanni elizondo",
+    "claudia arevalo",
+    "melissa garrido",
+]
+
 ESTADOS_CERRADOS = [
     "closed",
     "cerrado",
@@ -103,8 +109,17 @@ def limpiar_texto(valor):
 
 
 def normalizar_nombre(nombre):
-    """Normaliza un nombre para comparar sin importar mayúsculas."""
-    return limpiar_texto(nombre).lower()
+    """
+    Normaliza un nombre para comparar sin importar mayúsculas,
+    tildes ni espacios adicionales.
+    """
+    texto = limpiar_texto(nombre).lower()
+    texto = "".join(
+        caracter
+        for caracter in unicodedata.normalize("NFD", texto)
+        if unicodedata.category(caracter) != "Mn"
+    )
+    return " ".join(texto.split())
 
 
 def tecnico_excluido(nombre):
@@ -128,6 +143,20 @@ def es_david(nombre):
     return (
         nombre_normalizado == "david"
         or nombre_normalizado.startswith("david ")
+    )
+
+
+def es_tecnico_oculto(nombre):
+    """
+    Identifica personas que deben influir en las métricas generales,
+    pero no visualizarse ni evaluarse como técnicos.
+    """
+    nombre_normalizado = normalizar_nombre(nombre)
+
+    return any(
+        nombre_normalizado == tecnico
+        or nombre_normalizado.startswith(f"{tecnico} ")
+        for tecnico in TECNICOS_OCULTOS
     )
 
 
@@ -3175,7 +3204,7 @@ if LOGO.exists():
 else:
     st.sidebar.warning("No se encontró logo.png")
 # =========================================================
-# CARGA DEL ARCHIVO
+# CARGA DE DATOS Y ÚLTIMA CARGA GUARDADA
 # =========================================================
 
 st.sidebar.header("📂 Cargar datos")
@@ -3185,46 +3214,16 @@ archivo_subido = st.sidebar.file_uploader(
     type=["csv", "xlsx"],
 )
 
-if archivo_subido is None:
-    # No mostrar resultados de ejemplo al abrir la aplicación.
-    st.title(
-        "🎫 Sistema Inteligente de Análisis de Tickets"
-    )
+archivo_cargado_manualmente = archivo_subido is not None
 
-    st.markdown(
-        """
-        ### Bienvenido
-
-        Para comenzar el análisis:
-
-        1. Presiona **Upload** en la barra lateral.
-        2. Selecciona el archivo CSV o Excel exportado.
-        3. Espera unos segundos mientras se procesan los datos.
-        4. Revisa los indicadores, gráficos y descarga el informe PDF.
-
-        **La aplicación no guarda permanentemente el archivo cargado.**
-        """
-    )
-
-    st.info(
-        "📂 Carga un archivo CSV o Excel para visualizar los resultados."
-    )
-
-    st.stop()
-
-else:
+if archivo_cargado_manualmente:
     nombre_archivo = archivo_subido.name.lower()
 
     if nombre_archivo.endswith(".csv"):
-        tickets = pd.read_csv(
-            archivo_subido
-        )
+        tickets = pd.read_csv(archivo_subido)
     else:
-        # El modelo_v1.xlsx usa la hoja DATOS.
         try:
-            libro_excel = pd.ExcelFile(
-                archivo_subido
-            )
+            libro_excel = pd.ExcelFile(archivo_subido)
 
             if "DATOS" in libro_excel.sheet_names:
                 tickets = pd.read_excel(
@@ -3236,17 +3235,38 @@ else:
                     libro_excel,
                     sheet_name=0,
                 )
-
         except Exception:
-            tickets = pd.read_excel(
-                archivo_subido
-            )
+            tickets = pd.read_excel(archivo_subido)
+
+    tickets = normalizar_datos(tickets)
 
     st.sidebar.success(
         f"✅ Archivo cargado: {archivo_subido.name}"
     )
+else:
+    # Al abrir la página se muestra automáticamente la última carga
+    # almacenada en Supabase.
+    with st.spinner("Cargando la última información guardada..."):
+        tickets = cargar_ultima_carga()
 
-tickets = normalizar_datos(tickets)
+    if tickets.empty:
+        st.title("🎫 Sistema Inteligente de Análisis de Tickets")
+        st.info(
+            "No hay información guardada. Carga un archivo CSV o Excel "
+            "desde la barra lateral."
+        )
+        st.stop()
+
+    nombre_ultima_carga = (
+        tickets["nombre_archivo"].dropna().iloc[0]
+        if "nombre_archivo" in tickets.columns
+        and not tickets["nombre_archivo"].dropna().empty
+        else "Última carga guardada"
+    )
+
+    st.sidebar.success(
+        f"☁ Mostrando última carga: {nombre_ultima_carga}"
+    )
 
 # =========================================================
 # GUARDAR EN HISTORIAL DE SUPABASE
@@ -3255,118 +3275,152 @@ tickets = normalizar_datos(tickets)
 st.sidebar.divider()
 st.sidebar.subheader("💾 Historial")
 
-nombre_archivo_bd = (
-    archivo_subido.name
-    if archivo_subido is not None
-    else "archivo_predeterminado"
-)
-
-if st.sidebar.button(
-    "Guardar tickets en la base de datos",
-    use_container_width=True,
-):
-    with st.spinner(
-        "Guardando tickets en Supabase..."
+if archivo_cargado_manualmente:
+    if st.sidebar.button(
+        "Guardar tickets en la base de datos",
+        use_container_width=True,
     ):
-        cantidad_guardada, mensaje_guardado = guardar_tickets(
-            tickets,
-            nombre_archivo_bd,
-        )
+        with st.spinner("Guardando tickets en Supabase..."):
+            cantidad_guardada, mensaje_guardado = guardar_tickets(
+                tickets,
+                archivo_subido.name,
+            )
 
-    if cantidad_guardada > 0:
-        st.sidebar.success(mensaje_guardado)
-    else:
-        st.sidebar.warning(mensaje_guardado)
+        if cantidad_guardada > 0:
+            st.sidebar.success(mensaje_guardado)
+        else:
+            st.sidebar.warning(mensaje_guardado)
+else:
+    st.sidebar.caption(
+        "Carga un archivo nuevo para guardarlo o actualizar el historial."
+    )
+
 # =========================================================
-# ANÁLISIS HISTÓRICO DESDE SUPABASE
+# ANÁLISIS HISTÓRICO Y COMPARACIÓN DE MESES
 # =========================================================
 
 st.sidebar.divider()
-st.sidebar.subheader("📅 Análisis histórico")
+st.sidebar.subheader("📊 Análisis Histórico")
 
-usar_historial = st.sidebar.checkbox(
-    "Consultar historial",
-    value=False,
-)
+with st.spinner("Consultando períodos disponibles..."):
+    historial_completo = cargar_historial()
 
-if usar_historial:
-    with st.spinner("Cargando historial desde Supabase..."):
-        historial = cargar_historial()
+comparar_meses = False
+datos_comparacion_a = pd.DataFrame()
+datos_comparacion_b = pd.DataFrame()
+periodo_a = None
+periodo_b = None
 
-    if historial.empty:
-        st.sidebar.warning(
-            "No existen tickets guardados en la base de datos."
+if historial_completo.empty:
+    st.sidebar.warning("No existen datos históricos disponibles.")
+else:
+    historial_completo = historial_completo.copy()
+    historial_completo["fecha_apertura"] = pd.to_datetime(
+        historial_completo["fecha_apertura"],
+        errors="coerce",
+    )
+    historial_completo = historial_completo.dropna(
+        subset=["fecha_apertura"]
+    )
+    historial_completo["mes_periodo"] = (
+        historial_completo["fecha_apertura"].dt.to_period("M")
+    )
+
+    meses_disponibles = sorted(
+        historial_completo["mes_periodo"].dropna().unique()
+    )
+
+    opcion_actual = (
+        "Archivo cargado"
+        if archivo_cargado_manualmente
+        else "Última carga guardada"
+    )
+
+    opciones_periodo = [opcion_actual, "Todos los meses"] + [
+        periodo.strftime("%m/%Y")
+        for periodo in meses_disponibles
+    ]
+
+    periodo_seleccionado = st.sidebar.selectbox(
+        "Período a analizar",
+        opciones_periodo,
+    )
+
+    if periodo_seleccionado == "Todos los meses":
+        tickets = historial_completo.copy()
+    elif periodo_seleccionado not in {
+        "Archivo cargado",
+        "Última carga guardada",
+    }:
+        mes_elegido = pd.Period(
+            pd.to_datetime(
+                periodo_seleccionado,
+                format="%m/%Y",
+            ),
+            freq="M",
         )
-    else:
-        historial = historial.copy()
+        tickets = historial_completo[
+            historial_completo["mes_periodo"] == mes_elegido
+        ].copy()
 
-        historial["fecha_apertura"] = pd.to_datetime(
-            historial["fecha_apertura"],
-            errors="coerce",
-        )
+    comparar_meses = st.sidebar.checkbox(
+        "Comparar meses",
+        value=False,
+    )
 
-        historial = historial.dropna(
-            subset=["fecha_apertura"]
-        )
-
-        historial["mes_periodo"] = (
-            historial["fecha_apertura"]
-            .dt.to_period("M")
-        )
-
-        meses_disponibles = sorted(
-            historial["mes_periodo"].unique()
-        )
-
-        opciones_meses = ["Todos los meses"] + [
-            periodo.strftime("%m/%Y")
-            for periodo in meses_disponibles
-        ]
-
-        mes_seleccionado = st.sidebar.selectbox(
-            "Período a analizar",
-            opciones_meses,
-        )
-
-        if mes_seleccionado == "Todos los meses":
-            tickets = historial.copy()
+    if comparar_meses:
+        if len(meses_disponibles) < 2:
+            st.sidebar.warning(
+                "Debes tener al menos dos meses almacenados para comparar."
+            )
+            comparar_meses = False
         else:
-            mes_elegido = pd.Period(
-    pd.to_datetime(
-        mes_seleccionado,
-        format="%m/%Y",
-    ),
-    freq="M",
-)
+            periodo_a = st.sidebar.selectbox(
+                "Mes A",
+                options=meses_disponibles,
+                format_func=lambda periodo: periodo.strftime("%m/%Y"),
+                index=max(0, len(meses_disponibles) - 2),
+            )
+            periodo_b = st.sidebar.selectbox(
+                "Mes B",
+                options=meses_disponibles,
+                format_func=lambda periodo: periodo.strftime("%m/%Y"),
+                index=len(meses_disponibles) - 1,
+            )
 
-            tickets = historial[
-                historial["mes_periodo"] == mes_elegido
+            datos_comparacion_a = historial_completo[
+                historial_completo["mes_periodo"] == periodo_a
+            ].copy()
+            datos_comparacion_b = historial_completo[
+                historial_completo["mes_periodo"] == periodo_b
             ].copy()
 
-        st.sidebar.success(
-            f"{len(tickets):,} tickets cargados desde Supabase."
-        )
+    st.sidebar.success(
+        f"☁ {len(tickets):,} tickets disponibles en el período."
+    )
 
 # Segunda exclusión de seguridad para Neil.
 tickets = tickets[
     ~tickets["tecnico"].apply(tecnico_excluido)
 ].copy()
 
-# Base general con todos los registros válidos, incluido David.
+# Base general: incluye a las personas ocultas para que sus tickets
+# influyan en totales, productos, estados y tiempos.
 tickets_metricas_generales = tickets.copy()
 
-# David se conserva por separado.
-tickets_david = tickets_metricas_generales[
-    tickets_metricas_generales["tecnico"].apply(es_david)
+# Base separada de personas ocultas.
+tickets_ocultos = tickets_metricas_generales[
+    tickets_metricas_generales["tecnico"].apply(es_tecnico_oculto)
 ].copy()
 
-# Base exclusiva para estadísticas de técnicos.
-# David no aparece como técnico ni participa en productividad,
-# comparación de técnicos o índice de desempeño.
+# Base exclusiva para métricas y gráficos de técnicos visibles.
 tickets = tickets_metricas_generales[
-    ~tickets_metricas_generales["tecnico"].apply(es_david)
+    ~tickets_metricas_generales["tecnico"].apply(es_tecnico_oculto)
 ].copy()
 
+# Alias de compatibilidad con el código existente. Ahora contiene a todas
+# las personas ocultas, no solamente a David.
+tickets_david = tickets_ocultos.copy()
 
 # =========================================================
 # TÍTULO
@@ -3379,6 +3433,142 @@ st.title(
 st.write(
     "Panel estadístico para el análisis de soporte técnico."
 )
+
+
+# =========================================================
+# COMPARACIÓN ENTRE MESES
+# =========================================================
+
+if comparar_meses and periodo_a is not None and periodo_b is not None:
+    st.subheader("📈 Comparación entre meses")
+
+    # Neil se excluye completamente. Las personas ocultas sí suman en
+    # indicadores generales y productos, pero no en gráficos de técnicos.
+    datos_a_generales = datos_comparacion_a[
+        ~datos_comparacion_a["tecnico"].apply(tecnico_excluido)
+    ].copy()
+    datos_b_generales = datos_comparacion_b[
+        ~datos_comparacion_b["tecnico"].apply(tecnico_excluido)
+    ].copy()
+
+    datos_a_tecnicos = datos_a_generales[
+        ~datos_a_generales["tecnico"].apply(es_tecnico_oculto)
+    ].copy()
+    datos_b_tecnicos = datos_b_generales[
+        ~datos_b_generales["tecnico"].apply(es_tecnico_oculto)
+    ].copy()
+
+    total_a = len(datos_a_generales)
+    total_b = len(datos_b_generales)
+    cerrados_a = int(datos_a_generales["cerrado"].fillna(False).sum())
+    cerrados_b = int(datos_b_generales["cerrado"].fillna(False).sum())
+
+    resolucion_a = pd.to_numeric(
+        datos_a_generales["tiempo_resolucion_horas"],
+        errors="coerce",
+    ).mean()
+    resolucion_b = pd.to_numeric(
+        datos_b_generales["tiempo_resolucion_horas"],
+        errors="coerce",
+    ).mean()
+
+    variacion_tickets = (
+        ((total_b - total_a) / total_a) * 100
+        if total_a > 0
+        else 0
+    )
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(
+        periodo_a.strftime("%m/%Y"),
+        f"{total_a:,} tickets",
+    )
+    c2.metric(
+        periodo_b.strftime("%m/%Y"),
+        f"{total_b:,} tickets",
+        delta=f"{variacion_tickets:+.1f}%",
+    )
+    c3.metric(
+        "Cerrados",
+        f"{cerrados_b:,}",
+        delta=f"{cerrados_b - cerrados_a:+,}",
+    )
+    c4.metric(
+        "Resolución promedio",
+        formato_horas(resolucion_b),
+        delta=(
+            f"{(resolucion_b - resolucion_a):+.2f} h"
+            if pd.notna(resolucion_a) and pd.notna(resolucion_b)
+            else None
+        ),
+        delta_color="inverse",
+    )
+
+    # Comparación por producto: incluye a las personas ocultas.
+    productos_a = (
+        datos_a_generales["categoria"]
+        .value_counts()
+        .reindex(CATEGORIAS_VISIBLES, fill_value=0)
+        .rename("Mes A")
+    )
+    productos_b = (
+        datos_b_generales["categoria"]
+        .value_counts()
+        .reindex(CATEGORIAS_VISIBLES, fill_value=0)
+        .rename("Mes B")
+    )
+    comparacion_productos = pd.concat(
+        [productos_a, productos_b],
+        axis=1,
+    ).reset_index(names="Producto")
+    comparacion_productos_larga = comparacion_productos.melt(
+        id_vars="Producto",
+        var_name="Período",
+        value_name="Tickets",
+    )
+
+    figura_productos = px.bar(
+        comparacion_productos_larga,
+        x="Producto",
+        y="Tickets",
+        color="Período",
+        barmode="group",
+        text="Tickets",
+        title="Comparación de tickets por producto",
+    )
+    figura_productos.update_traces(textposition="outside")
+    st.plotly_chart(figura_productos, use_container_width=True)
+
+    # Comparación por técnico: excluye a las personas ocultas.
+    tecnicos_a = datos_a_tecnicos["tecnico"].value_counts()
+    tecnicos_b = datos_b_tecnicos["tecnico"].value_counts()
+    tecnicos_comunes = sorted(set(tecnicos_a.index) | set(tecnicos_b.index))
+    comparacion_tecnicos = pd.DataFrame(
+        {
+            "Técnico": tecnicos_comunes,
+            "Mes A": [int(tecnicos_a.get(t, 0)) for t in tecnicos_comunes],
+            "Mes B": [int(tecnicos_b.get(t, 0)) for t in tecnicos_comunes],
+        }
+    )
+    comparacion_tecnicos_larga = comparacion_tecnicos.melt(
+        id_vars="Técnico",
+        var_name="Período",
+        value_name="Tickets",
+    )
+
+    figura_tecnicos = px.bar(
+        comparacion_tecnicos_larga,
+        x="Técnico",
+        y="Tickets",
+        color="Período",
+        barmode="group",
+        text="Tickets",
+        title="Comparación de tickets por técnico",
+    )
+    figura_tecnicos.update_traces(textposition="outside")
+    st.plotly_chart(figura_tecnicos, use_container_width=True)
+
+    st.divider()
 
 
 # =========================================================
@@ -3494,10 +3684,10 @@ if (
 
 
 # =========================================================
-# FILTROS PARA LOS TICKETS DE DAVID
+# FILTROS PARA LOS TICKETS DE PERSONAS OCULTAS
 # =========================================================
 
-tickets_david_filtrados = tickets_david.copy()
+tickets_david_filtrados = tickets_ocultos.copy()
 
 if estado_seleccionado != "Todos":
     tickets_david_filtrados = tickets_david_filtrados[
@@ -3526,7 +3716,7 @@ if (
         )
     ]
 
-# Base general filtrada: técnicos regulares + David.
+# Base general filtrada: técnicos visibles + personas ocultas.
 tickets_generales_filtrados = pd.concat(
     [
         tickets_filtrados,
@@ -3536,7 +3726,7 @@ tickets_generales_filtrados = pd.concat(
 )
 
 # Base para estadísticas por producto:
-# incluye los tickets de David en el producto real indicado
+# incluye los tickets de las personas ocultas en el producto real indicado
 # por la columna Producto del Excel.
 tickets_productos_filtrados = tickets_generales_filtrados.copy()
 
