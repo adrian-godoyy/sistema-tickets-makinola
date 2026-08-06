@@ -586,31 +586,35 @@ def cargar_historial(
 
 def cargar_ultima_carga() -> pd.DataFrame:
     """
-    Devuelve solamente los tickets correspondientes a la última carga.
+    Devuelve los tickets del mes más reciente disponible.
 
-    Todos los registros de una misma importación comparten fecha_carga,
-    porque preparar_registros genera ese valor una sola vez por archivo.
+    El período se determina usando fecha_apertura, no fecha_carga.
+    Así, al iniciar la aplicación se muestra siempre el mes operativo
+    más actual almacenado en la base de datos.
     """
     historial = cargar_historial()
 
-    if historial.empty or "fecha_carga" not in historial.columns:
+    if historial.empty or "fecha_apertura" not in historial.columns:
         return pd.DataFrame()
 
-    fechas_carga = pd.to_datetime(
-        historial["fecha_carga"],
+    historial = historial.copy()
+    historial["fecha_apertura"] = pd.to_datetime(
+        historial["fecha_apertura"],
         errors="coerce",
     )
+    historial = historial.dropna(subset=["fecha_apertura"])
 
-    if fechas_carga.dropna().empty:
-        return historial.copy()
+    if historial.empty:
+        return pd.DataFrame()
 
-    ultima_fecha = fechas_carga.max()
+    historial["mes_periodo"] = (
+        historial["fecha_apertura"].dt.to_period("M")
+    )
+    ultimo_mes = historial["mes_periodo"].max()
 
-    ultima_carga = historial[
-        fechas_carga == ultima_fecha
+    return historial[
+        historial["mes_periodo"] == ultimo_mes
     ].copy()
-
-    return ultima_carga
 
 
 # =========================================================
