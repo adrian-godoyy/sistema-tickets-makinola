@@ -3246,7 +3246,7 @@ if archivo_cargado_manualmente:
 else:
     # Al abrir la página se muestra automáticamente la última carga
     # almacenada en Supabase.
-    with st.spinner("Cargando la última información guardada..."):
+    with st.spinner("Cargando el mes más reciente guardado..."):
         tickets = cargar_ultima_carga()
 
     if tickets.empty:
@@ -3261,11 +3261,11 @@ else:
         tickets["nombre_archivo"].dropna().iloc[0]
         if "nombre_archivo" in tickets.columns
         and not tickets["nombre_archivo"].dropna().empty
-        else "Última carga guardada"
+        else "Mes más reciente"
     )
 
     st.sidebar.success(
-        f"☁ Mostrando última carga: {nombre_ultima_carga}"
+        f"☁ Mostrando mes más reciente: {nombre_ultima_carga}"
     )
 
 # =========================================================
@@ -3275,24 +3275,27 @@ else:
 st.sidebar.divider()
 st.sidebar.subheader("💾 Historial")
 
-if archivo_cargado_manualmente:
-    if st.sidebar.button(
-        "Guardar tickets en la base de datos",
-        use_container_width=True,
-    ):
-        with st.spinner("Guardando tickets en Supabase..."):
-            cantidad_guardada, mensaje_guardado = guardar_tickets(
-                tickets,
-                archivo_subido.name,
-            )
+boton_guardar = st.sidebar.button(
+    "Guardar tickets en la base de datos",
+    use_container_width=True,
+    disabled=not archivo_cargado_manualmente,
+)
 
-        if cantidad_guardada > 0:
-            st.sidebar.success(mensaje_guardado)
-        else:
-            st.sidebar.warning(mensaje_guardado)
-else:
+if boton_guardar:
+    with st.spinner("Guardando tickets en Supabase..."):
+        cantidad_guardada, mensaje_guardado = guardar_tickets(
+            tickets,
+            archivo_subido.name,
+        )
+
+    if cantidad_guardada > 0:
+        st.sidebar.success(mensaje_guardado)
+    else:
+        st.sidebar.warning(mensaje_guardado)
+
+if not archivo_cargado_manualmente:
     st.sidebar.caption(
-        "Carga un archivo nuevo para guardarlo o actualizar el historial."
+        "Carga un archivo nuevo para habilitar el guardado."
     )
 
 # =========================================================
@@ -3306,10 +3309,8 @@ with st.spinner("Consultando períodos disponibles..."):
     historial_completo = cargar_historial()
 
 comparar_meses = False
-datos_comparacion_a = pd.DataFrame()
-datos_comparacion_b = pd.DataFrame()
-periodo_a = None
-periodo_b = None
+periodos_comparacion = []
+datos_comparacion = pd.DataFrame()
 
 if historial_completo.empty:
     st.sidebar.warning("No existen datos históricos disponibles.")
@@ -3333,7 +3334,7 @@ else:
     opcion_actual = (
         "Archivo cargado"
         if archivo_cargado_manualmente
-        else "Última carga guardada"
+        else "Mes más reciente"
     )
 
     opciones_periodo = [opcion_actual, "Todos los meses"] + [
@@ -3350,7 +3351,7 @@ else:
         tickets = historial_completo.copy()
     elif periodo_seleccionado not in {
         "Archivo cargado",
-        "Última carga guardada",
+        "Mes más reciente",
     }:
         mes_elegido = pd.Period(
             pd.to_datetime(
@@ -3375,25 +3376,26 @@ else:
             )
             comparar_meses = False
         else:
-            periodo_a = st.sidebar.selectbox(
-                "Mes A",
+            cantidad_predeterminada = min(3, len(meses_disponibles))
+            periodos_comparacion = st.sidebar.multiselect(
+                "Meses a comparar",
                 options=meses_disponibles,
+                default=meses_disponibles[-cantidad_predeterminada:],
                 format_func=lambda periodo: periodo.strftime("%m/%Y"),
-                index=max(0, len(meses_disponibles) - 2),
-            )
-            periodo_b = st.sidebar.selectbox(
-                "Mes B",
-                options=meses_disponibles,
-                format_func=lambda periodo: periodo.strftime("%m/%Y"),
-                index=len(meses_disponibles) - 1,
+                help="Selecciona dos o más meses para compararlos.",
             )
 
-            datos_comparacion_a = historial_completo[
-                historial_completo["mes_periodo"] == periodo_a
-            ].copy()
-            datos_comparacion_b = historial_completo[
-                historial_completo["mes_periodo"] == periodo_b
-            ].copy()
+            if len(periodos_comparacion) < 2:
+                st.sidebar.warning(
+                    "Selecciona al menos dos meses para realizar la comparación."
+                )
+                comparar_meses = False
+            else:
+                datos_comparacion = historial_completo[
+                    historial_completo["mes_periodo"].isin(
+                        periodos_comparacion
+                    )
+                ].copy()
 
     st.sidebar.success(
         f"☁ {len(tickets):,} tickets disponibles en el período."
@@ -3439,131 +3441,109 @@ st.write(
 # COMPARACIÓN ENTRE MESES
 # =========================================================
 
-if comparar_meses and periodo_a is not None and periodo_b is not None:
+if comparar_meses and len(periodos_comparacion) >= 2:
     st.subheader("📈 Comparación entre meses")
 
-    # Neil se excluye completamente. Las personas ocultas sí suman en
-    # indicadores generales y productos, pero no en gráficos de técnicos.
-    datos_a_generales = datos_comparacion_a[
-        ~datos_comparacion_a["tecnico"].apply(tecnico_excluido)
+    datos_generales = datos_comparacion[
+        ~datos_comparacion["tecnico"].apply(tecnico_excluido)
     ].copy()
-    datos_b_generales = datos_comparacion_b[
-        ~datos_comparacion_b["tecnico"].apply(tecnico_excluido)
+    datos_tecnicos = datos_generales[
+        ~datos_generales["tecnico"].apply(es_tecnico_oculto)
     ].copy()
 
-    datos_a_tecnicos = datos_a_generales[
-        ~datos_a_generales["tecnico"].apply(es_tecnico_oculto)
-    ].copy()
-    datos_b_tecnicos = datos_b_generales[
-        ~datos_b_generales["tecnico"].apply(es_tecnico_oculto)
-    ].copy()
+    resumen_meses = (
+        datos_generales.groupby("mes_periodo", as_index=False)
+        .agg(
+            Tickets=("id", "count"),
+            Cerrados=("cerrado", "sum"),
+            Resolucion_promedio=("tiempo_resolucion_horas", "mean"),
+        )
+        .sort_values("mes_periodo")
+    )
+    resumen_meses["Mes"] = resumen_meses["mes_periodo"].apply(
+        lambda periodo: periodo.strftime("%m/%Y")
+    )
+    resumen_meses["Variación tickets (%)"] = (
+        resumen_meses["Tickets"].pct_change() * 100
+    ).round(1)
+    resumen_meses["Resolución promedio"] = resumen_meses[
+        "Resolucion_promedio"
+    ].apply(formato_horas)
 
-    total_a = len(datos_a_generales)
-    total_b = len(datos_b_generales)
-    cerrados_a = int(datos_a_generales["cerrado"].fillna(False).sum())
-    cerrados_b = int(datos_b_generales["cerrado"].fillna(False).sum())
-
-    resolucion_a = pd.to_numeric(
-        datos_a_generales["tiempo_resolucion_horas"],
+    total_acumulado = int(resumen_meses["Tickets"].sum())
+    total_cerrados = int(resumen_meses["Cerrados"].sum())
+    resolucion_global = pd.to_numeric(
+        datos_generales["tiempo_resolucion_horas"],
         errors="coerce",
     ).mean()
-    resolucion_b = pd.to_numeric(
-        datos_b_generales["tiempo_resolucion_horas"],
-        errors="coerce",
-    ).mean()
 
-    variacion_tickets = (
-        ((total_b - total_a) / total_a) * 100
-        if total_a > 0
-        else 0
-    )
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Meses comparados", len(periodos_comparacion))
+    c2.metric("Tickets acumulados", f"{total_acumulado:,}")
+    c3.metric("Resolución promedio global", formato_horas(resolucion_global))
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric(
-        periodo_a.strftime("%m/%Y"),
-        f"{total_a:,} tickets",
-    )
-    c2.metric(
-        periodo_b.strftime("%m/%Y"),
-        f"{total_b:,} tickets",
-        delta=f"{variacion_tickets:+.1f}%",
-    )
-    c3.metric(
-        "Cerrados",
-        f"{cerrados_b:,}",
-        delta=f"{cerrados_b - cerrados_a:+,}",
-    )
-    c4.metric(
-        "Resolución promedio",
-        formato_horas(resolucion_b),
-        delta=(
-            f"{(resolucion_b - resolucion_a):+.2f} h"
-            if pd.notna(resolucion_a) and pd.notna(resolucion_b)
-            else None
-        ),
-        delta_color="inverse",
+    st.dataframe(
+        resumen_meses[
+            [
+                "Mes",
+                "Tickets",
+                "Cerrados",
+                "Resolución promedio",
+                "Variación tickets (%)",
+            ]
+        ],
+        use_container_width=True,
+        hide_index=True,
     )
 
-    # Comparación por producto: incluye a las personas ocultas.
-    productos_a = (
-        datos_a_generales["categoria"]
-        .value_counts()
-        .reindex(CATEGORIAS_VISIBLES, fill_value=0)
-        .rename("Mes A")
-    )
-    productos_b = (
-        datos_b_generales["categoria"]
-        .value_counts()
-        .reindex(CATEGORIAS_VISIBLES, fill_value=0)
-        .rename("Mes B")
-    )
-    comparacion_productos = pd.concat(
-        [productos_a, productos_b],
-        axis=1,
-    ).reset_index(names="Producto")
-    comparacion_productos_larga = comparacion_productos.melt(
-        id_vars="Producto",
-        var_name="Período",
-        value_name="Tickets",
-    )
-
-    figura_productos = px.bar(
-        comparacion_productos_larga,
-        x="Producto",
+    figura_totales = px.bar(
+        resumen_meses,
+        x="Mes",
         y="Tickets",
-        color="Período",
+        text="Tickets",
+        title="Tickets por mes",
+    )
+    figura_totales.update_traces(textposition="outside")
+    st.plotly_chart(figura_totales, use_container_width=True)
+
+    productos_meses = (
+        datos_generales.groupby(["mes_periodo", "categoria"])
+        .size()
+        .reset_index(name="Tickets")
+    )
+    productos_meses["Mes"] = productos_meses["mes_periodo"].apply(
+        lambda periodo: periodo.strftime("%m/%Y")
+    )
+    figura_productos = px.bar(
+        productos_meses,
+        x="categoria",
+        y="Tickets",
+        color="Mes",
         barmode="group",
         text="Tickets",
         title="Comparación de tickets por producto",
+        labels={"categoria": "Producto"},
     )
     figura_productos.update_traces(textposition="outside")
     st.plotly_chart(figura_productos, use_container_width=True)
 
-    # Comparación por técnico: excluye a las personas ocultas.
-    tecnicos_a = datos_a_tecnicos["tecnico"].value_counts()
-    tecnicos_b = datos_b_tecnicos["tecnico"].value_counts()
-    tecnicos_comunes = sorted(set(tecnicos_a.index) | set(tecnicos_b.index))
-    comparacion_tecnicos = pd.DataFrame(
-        {
-            "Técnico": tecnicos_comunes,
-            "Mes A": [int(tecnicos_a.get(t, 0)) for t in tecnicos_comunes],
-            "Mes B": [int(tecnicos_b.get(t, 0)) for t in tecnicos_comunes],
-        }
+    tecnicos_meses = (
+        datos_tecnicos.groupby(["mes_periodo", "tecnico"])
+        .size()
+        .reset_index(name="Tickets")
     )
-    comparacion_tecnicos_larga = comparacion_tecnicos.melt(
-        id_vars="Técnico",
-        var_name="Período",
-        value_name="Tickets",
+    tecnicos_meses["Mes"] = tecnicos_meses["mes_periodo"].apply(
+        lambda periodo: periodo.strftime("%m/%Y")
     )
-
     figura_tecnicos = px.bar(
-        comparacion_tecnicos_larga,
-        x="Técnico",
+        tecnicos_meses,
+        x="tecnico",
         y="Tickets",
-        color="Período",
+        color="Mes",
         barmode="group",
         text="Tickets",
         title="Comparación de tickets por técnico",
+        labels={"tecnico": "Técnico"},
     )
     figura_tecnicos.update_traces(textposition="outside")
     st.plotly_chart(figura_tecnicos, use_container_width=True)
