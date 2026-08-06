@@ -557,6 +557,18 @@ def cargar_historial(
                 .astype(bool)
             )
 
+        # Columnas de compatibilidad usadas por el dashboard y el PDF.
+        if "entorno" not in historial.columns:
+            historial["entorno"] = "Sin información"
+
+        if "tiempo_primera_respuesta_horas" not in historial.columns:
+            if "tiempo_primera_respuesta_min" in historial.columns:
+                historial["tiempo_primera_respuesta_horas"] = (
+                    historial["tiempo_primera_respuesta_min"] / 60
+                )
+            else:
+                historial["tiempo_primera_respuesta_horas"] = pd.NA
+
         return historial
 
     except Exception as error:
@@ -566,6 +578,39 @@ def cargar_historial(
         )
 
         return pd.DataFrame()
+
+
+# =========================================================
+# CARGAR LA ÚLTIMA IMPORTACIÓN
+# =========================================================
+
+def cargar_ultima_carga() -> pd.DataFrame:
+    """
+    Devuelve solamente los tickets correspondientes a la última carga.
+
+    Todos los registros de una misma importación comparten fecha_carga,
+    porque preparar_registros genera ese valor una sola vez por archivo.
+    """
+    historial = cargar_historial()
+
+    if historial.empty or "fecha_carga" not in historial.columns:
+        return pd.DataFrame()
+
+    fechas_carga = pd.to_datetime(
+        historial["fecha_carga"],
+        errors="coerce",
+    )
+
+    if fechas_carga.dropna().empty:
+        return historial.copy()
+
+    ultima_fecha = fechas_carga.max()
+
+    ultima_carga = historial[
+        fechas_carga == ultima_fecha
+    ].copy()
+
+    return ultima_carga
 
 
 # =========================================================
